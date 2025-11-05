@@ -26,31 +26,52 @@ A desktop application that brings AI-powered coding assistance to your projects.
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Quick Install
 
-- Node.js 18+ and npm
-- A Clerk account for authentication
-- A Supabase account for database
-- An Anthropic API key for Claude Code SDK
-
-### Environment Setup
-
-Create a `.env.local` file in the root directory:
+Install and run Vibe Coders with a single command:
 
 ```bash
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
-CLERK_SECRET_KEY=your_clerk_secret_key
-
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Anthropic API
-ANTHROPIC_API_KEY=your_anthropic_api_key
+curl -fsSL https://raw.githubusercontent.com/papay0/vibe-coders-desktop/main/install.sh | bash
 ```
 
-### Installation
+This will:
+- ✓ Check and install dependencies (Git, Node.js 18+, npm)
+- ✓ Clone the repository to `~/.vibe-coders/vibe-coders-desktop`
+- ✓ Install npm packages
+- ✓ Set up the `vibe-coders` CLI tool
+
+After installation, restart your terminal or run:
+```bash
+source ~/.zshrc  # or ~/.bashrc
+```
+
+Then start the app:
+```bash
+vibe-coders
+```
+
+The app will start on **port 3737** (or the next available port if 3737 is in use). You'll see the URL in the terminal output.
+
+### CLI Commands
+
+Once installed, you can use these commands:
+
+```bash
+vibe-coders          # Start development server
+vibe-coders dev      # Start development server (explicit)
+vibe-coders update   # Update to latest version (git pull + npm install)
+vibe-coders build    # Build for production
+vibe-coders --help   # Show all commands
+```
+
+Add `--verbose` to any command to see detailed output:
+```bash
+vibe-coders --verbose
+```
+
+### Manual Installation
+
+If you prefer to install manually:
 
 1. Clone the repository:
 ```bash
@@ -63,17 +84,32 @@ cd vibe-coders-desktop
 npm install
 ```
 
-3. Set up the database:
-   - Create a Supabase project
-   - Run the migrations from `supabase/migrations` (if available)
-   - Or create the `projects` table manually (see Database Schema below)
-
-4. Run the development server:
+3. Run the development server:
 ```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+4. Open the URL shown in your terminal (default: [http://localhost:3737](http://localhost:3737))
+
+### Configuration
+
+**No configuration required!** Public API keys for Clerk, Supabase, and Claude are included in the codebase (`lib/config.ts`).
+
+**To use your own keys** (optional), create a `.env.local` file:
+
+```bash
+# Clerk Authentication (optional - defaults provided)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+
+# Supabase (optional - defaults provided)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Claude Agent SDK (optional - defaults provided)
+CLAUDE_CODE_OAUTH_TOKEN=your_oauth_token
+```
+
+Environment variables take precedence over hardcoded values.
 
 ## 📊 Database Schema
 

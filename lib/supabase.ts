@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { config } from './config'
 
 export type UserSettings = {
   id: string
@@ -20,8 +21,8 @@ export type Project = {
 
 export function createClerkSupabaseClient(getToken: () => Promise<string | null>) {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    config.supabase.url,
+    config.supabase.anonKey,
     {
       global: {
         fetch: async (url, options = {}) => {
