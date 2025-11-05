@@ -15,11 +15,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# Unicode symbols
+# ASCII symbols (work in all terminals)
 CHECK_MARK="✓"
 CROSS_MARK="✗"
 ARROW="→"
-SPARKLES="✨"
+ROCKET="🚀"
 
 # Configuration
 INSTALL_DIR="$HOME/.vibe-coders"
@@ -27,23 +27,34 @@ REPO_DIR="$INSTALL_DIR/vibe-coders-desktop"
 REPO_URL="https://github.com/papay0/vibe-coders-desktop.git"
 BIN_NAME="vibe-coders"
 NODE_MIN_VERSION="18"
+DEFAULT_PORT="3737"
 
-# Verbose mode
+# Flags
 VERBOSE=false
-if [[ "$*" == *--verbose* ]]; then
-    VERBOSE=true
-fi
+SKIP_DEV=false
 
-# Spinner function
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        --verbose)
+            VERBOSE=true
+            ;;
+        --skip-dev)
+            SKIP_DEV=true
+            ;;
+    esac
+done
+
+# Simple ASCII spinner that works everywhere
 spinner() {
     local pid=$1
     local message=$2
     local delay=0.1
-    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local spinstr='|/-\'
 
     while ps -p "$pid" > /dev/null 2>&1; do
         local temp=${spinstr#?}
-        printf " ${CYAN}%c${RESET}  %s" "$spinstr" "$message"
+        printf " ${CYAN}[%c]${RESET} %s" "$spinstr" "$message"
         local spinstr=$temp${spinstr%"$temp"}
         sleep $delay
         printf "\r"
@@ -247,6 +258,7 @@ setup_cli() {
 
 REPO_DIR="$HOME/.vibe-coders/vibe-coders-desktop"
 VERBOSE=false
+DEFAULT_PORT="3737"
 
 # Colors
 RED='\033[0;31m'
@@ -258,6 +270,44 @@ RESET='\033[0m'
 if [[ "$*" == *--verbose* ]]; then
     VERBOSE=true
 fi
+
+# Detect OS for browser opening
+detect_os() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "linux"
+    else
+        echo "unknown"
+    fi
+}
+
+# Check if port is in use
+is_port_in_use() {
+    local port=$1
+    if command -v lsof > /dev/null 2>&1; then
+        lsof -i ":${port}" > /dev/null 2>&1
+    elif command -v netstat > /dev/null 2>&1; then
+        netstat -an | grep ":${port}" | grep LISTEN > /dev/null 2>&1
+    else
+        # Fallback: assume not in use
+        return 1
+    fi
+}
+
+# Open browser
+open_browser() {
+    local url=$1
+    local os=$(detect_os)
+
+    sleep 2  # Give server time to start
+
+    if [ "$os" = "macos" ]; then
+        open "$url" 2>/dev/null || true
+    elif [ "$os" = "linux" ]; then
+        xdg-open "$url" 2>/dev/null || sensible-browser "$url" 2>/dev/null || true
+    fi
+}
 
 # Show help
 show_help() {
@@ -278,7 +328,7 @@ show_help() {
     echo "  --verbose     Show detailed output"
     echo ""
     echo "Examples:"
-    echo "  vibe-coders              # Start dev server"
+    echo "  vibe-coders              # Start dev server & open browser"
     echo "  vibe-coders update       # Update to latest version"
     echo "  vibe-coders build        # Build for production"
 }
@@ -297,9 +347,23 @@ cd "$REPO_DIR" || exit 1
 
 case "${1:-dev}" in
     dev|"")
-        echo -e "${GREEN}Starting Vibe Coders development server...${RESET}"
-        echo -e "${CYAN}Press Ctrl+C to stop${RESET}\n"
-        execute_cmd npm run dev
+        # Check if server is already running
+        if is_port_in_use "$DEFAULT_PORT"; then
+            echo -e "${YELLOW}Dev server is already running on port ${DEFAULT_PORT}${RESET}"
+            echo -e "${CYAN}Opening browser at http://localhost:${DEFAULT_PORT}${RESET}\n"
+            open_browser "http://localhost:${DEFAULT_PORT}"
+            echo -e "${GREEN}✓${RESET} Browser opened. Server is still running in the background."
+        else
+            echo -e "${GREEN}Starting Vibe Coders development server...${RESET}"
+            echo -e "${CYAN}Opening browser at http://localhost:${DEFAULT_PORT}${RESET}"
+            echo -e "${CYAN}Press Ctrl+C to stop${RESET}\n"
+
+            # Open browser in background
+            open_browser "http://localhost:${DEFAULT_PORT}" &
+
+            # Start dev server
+            execute_cmd npm run dev
+        fi
         ;;
 
     build)
@@ -336,19 +400,17 @@ SCRIPT_EOF
     chmod +x "$bin_dir/$BIN_NAME"
     echo -e "${GREEN}${CHECK_MARK}${RESET} CLI tool created at ${bin_dir}/${BIN_NAME}"
 
-    # Add to PATH
+    # Add to PATH - detect user's default shell, not current script shell
     local shell_config=""
-    if [ -n "$BASH_VERSION" ]; then
-        shell_config="$HOME/.bashrc"
-    elif [ -n "$ZSH_VERSION" ]; then
+    local user_shell=$(basename "$SHELL" 2>/dev/null)
+
+    # Determine config file based on user's default shell
+    if [ "$user_shell" = "zsh" ] || [ -f "$HOME/.zshrc" ]; then
         shell_config="$HOME/.zshrc"
-    else
-        # Try to detect
-        if [ -f "$HOME/.zshrc" ]; then
-            shell_config="$HOME/.zshrc"
-        elif [ -f "$HOME/.bashrc" ]; then
-            shell_config="$HOME/.bashrc"
-        fi
+    elif [ "$user_shell" = "bash" ] || [ -f "$HOME/.bashrc" ]; then
+        shell_config="$HOME/.bashrc"
+    elif [ -f "$HOME/.profile" ]; then
+        shell_config="$HOME/.profile"
     fi
 
     if [ -n "$shell_config" ]; then
@@ -357,7 +419,6 @@ SCRIPT_EOF
             echo "# Vibe Coders CLI" >> "$shell_config"
             echo "export PATH=\"\$HOME/.vibe-coders/bin:\$PATH\"" >> "$shell_config"
             echo -e "${GREEN}${CHECK_MARK}${RESET} Added to PATH in ${shell_config}"
-            echo -e "${YELLOW}Note:${RESET} Run ${CYAN}source ${shell_config}${RESET} or restart your terminal"
         else
             echo -e "${GREEN}${CHECK_MARK}${RESET} Already in PATH"
         fi
@@ -369,23 +430,36 @@ SCRIPT_EOF
     echo ""
 }
 
+# Start dev server and open browser
+start_dev_server() {
+    echo -e "${BOLD}${ROCKET} Starting development server...${RESET}\n"
+
+    # Use the vibe-coders CLI command (PATH was already exported)
+    "$INSTALL_DIR/bin/vibe-coders"
+}
+
 # Print success message
 print_success() {
-    echo -e "${GREEN}${SPARKLES}${SPARKLES}${SPARKLES}${RESET}\n"
-    echo -e "${BOLD}${GREEN}Installation complete!${RESET}\n"
-    echo -e "${BOLD}Next steps:${RESET}"
-    echo -e "  1. ${CYAN}source ~/.zshrc${RESET} (or restart your terminal)"
-    echo -e "  2. ${CYAN}vibe-coders${RESET} to start the development server"
-    echo -e ""
-    echo -e "${BOLD}Commands:${RESET}"
-    echo -e "  ${CYAN}vibe-coders${RESET}        - Start dev server"
-    echo -e "  ${CYAN}vibe-coders update${RESET} - Update to latest version"
-    echo -e "  ${CYAN}vibe-coders build${RESET}  - Build for production"
-    echo -e "  ${CYAN}vibe-coders --help${RESET} - Show all commands"
-    echo -e ""
-    echo -e "Installation directory: ${CYAN}${INSTALL_DIR}${RESET}"
-    echo -e ""
-    echo -e "Happy coding! ${SPARKLES}"
+    # Export PATH for current session (works for direct script execution)
+    export PATH="$HOME/.vibe-coders/bin:$PATH"
+
+    echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${BOLD}${GREEN}Installation complete!${RESET}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"
+
+    if [ "$SKIP_DEV" = false ]; then
+        echo -e "${GREEN}${ROCKET} Opening Vibe Coders now!${RESET}\n"
+        echo -e "${CYAN}Starting in 2 seconds (press Ctrl+C to cancel)...${RESET}\n"
+        sleep 2
+    else
+        echo -e "${BOLD}Next steps:${RESET}"
+        echo -e "  ${CYAN}vibe-coders${RESET}        - Start dev server & open browser"
+        echo -e "  ${CYAN}vibe-coders update${RESET} - Update to latest version"
+        echo -e "  ${CYAN}vibe-coders build${RESET}  - Build for production"
+        echo -e ""
+        echo -e "${YELLOW}Note:${RESET} The ${CYAN}vibe-coders${RESET} command will be available in new terminal windows."
+        echo -e "${YELLOW}For this session, restart your terminal or type: ${CYAN}vibe-coders${RESET}\n"
+    fi
 }
 
 # Main installation flow
@@ -396,6 +470,32 @@ main() {
     install_packages
     setup_cli
     print_success
+
+    # Auto-start dev server unless --skip-dev flag
+    if [ "$SKIP_DEV" = false ]; then
+        start_dev_server
+
+        # After server stops, show next steps
+        echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+        echo -e "${BOLD}To run Vibe Coders again:${RESET}\n"
+        echo -e "${YELLOW}In this terminal:${RESET}"
+        echo -e "  ${CYAN}~/.vibe-coders/bin/vibe-coders${RESET}\n"
+        echo -e "${YELLOW}In a new terminal window:${RESET}"
+        echo -e "  ${CYAN}vibe-coders${RESET}\n"
+        echo -e "${GREEN}Happy coding! ${ROCKET}${RESET}"
+    else
+        echo -e "${BOLD}Commands:${RESET}"
+        echo -e "  ${CYAN}vibe-coders${RESET}        - Start dev server & open browser"
+        echo -e "  ${CYAN}vibe-coders update${RESET} - Update to latest version"
+        echo -e "  ${CYAN}vibe-coders build${RESET}  - Build for production"
+        echo -e "  ${CYAN}vibe-coders --help${RESET} - Show all commands"
+        echo -e ""
+        echo -e "${YELLOW}Note:${RESET} The ${CYAN}vibe-coders${RESET} command will be available in new terminal windows."
+        echo -e "${YELLOW}For this session, use: ${CYAN}~/.vibe-coders/bin/vibe-coders${RESET}\n"
+        echo -e "Installation directory: ${CYAN}${INSTALL_DIR}${RESET}"
+        echo -e ""
+        echo -e "${GREEN}Happy coding! ${ROCKET}${RESET}"
+    fi
 }
 
 # Run main function
