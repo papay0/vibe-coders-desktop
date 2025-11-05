@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { useUser, useSession } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SetBreadcrumbName } from '@/components/breadcrumb-context';
+import { GitCommitTest } from '@/components/git-commit-test';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, Plus, Loader2, Sparkles, Smartphone, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, FolderOpen, Sparkles, Smartphone, Loader2, Trash2 } from 'lucide-react';
 
-export default function HomePage() {
+export default function ProjectsPage() {
   const router = useRouter();
   const { user } = useUser();
   const { session } = useSession();
@@ -26,8 +28,7 @@ export default function HomePage() {
         .from('projects')
         .select('*')
         .eq('clerk_user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(6);
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -86,46 +87,54 @@ export default function HomePage() {
   };
 
   const getDisplayName = (project: Project) => {
+    // If the name looks like a path, extract just the folder name
     if (project.project_name.includes('/') || project.project_name.includes('\\')) {
-      return project.project_name.split(/[\\/\\]/).filter(Boolean).pop() || project.project_name;
+      return project.project_name.split(/[\/\\]/).filter(Boolean).pop() || project.project_name;
     }
     return project.project_name;
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold">Welcome to Vibe Coders</h1>
-        <p className="text-muted-foreground mt-1">
-          Build amazing projects with AI assistance
-        </p>
+    <>
+      <SetBreadcrumbName name="Projects" />
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Projects</h1>
+          <p className="text-muted-foreground mt-1">
+            Create and manage your projects
+          </p>
+        </div>
+        <Button onClick={() => router.push('/home/add-project')} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Add Project
+        </Button>
       </div>
 
-      {/* Projects Grid */}
+      {/* Projects List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
         </div>
+      ) : projects.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <FolderOpen className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold mb-2 text-lg">No projects yet</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md">
+              Get started by importing an existing project or creating a new one with AI assistance
+            </p>
+            <Button onClick={() => router.push('/home/add-project')} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Your First Project
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {/* Add Project Card */}
-          <Card
-            className="cursor-pointer hover:border-teal-600 transition-colors border-dashed"
-            onClick={() => router.push('/home/add-project')}
-          >
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="rounded-full bg-teal-100 dark:bg-teal-900 p-4 mb-4">
-                <Plus className="h-8 w-8 text-teal-600 dark:text-teal-400" />
-              </div>
-              <h3 className="font-semibold mb-2">Add Project</h3>
-              <p className="text-sm text-muted-foreground">
-                Import or create a new project
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Project Cards */}
           {projects.map((project) => (
             <Card
               key={project.id}
@@ -167,6 +176,22 @@ export default function HomePage() {
           ))}
         </div>
       )}
-    </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Developer Tools
+          </span>
+        </div>
+      </div>
+
+      {/* Current Functionality */}
+      <GitCommitTest />
+      </div>
+    </>
   );
 }

@@ -22,15 +22,27 @@ export function DynamicBreadcrumb() {
   // Remove 'home' prefix since we always show "Home" as root
   const pathSegments = segments.slice(1);
 
-  const getBreadcrumbLabel = (segment: string) => {
-    // Use custom name if set
-    if (customName) return customName;
+  const getBreadcrumbLabel = (segment: string, index: number) => {
+    const isLast = index === pathSegments.length - 1;
+
+    // Use custom name only for the last segment
+    if (isLast && customName) return customName;
+
+    // Special case: "project" should show as "Projects"
+    if (segment === 'project') return 'Projects';
 
     // Capitalize first letter for segments
     return segment.charAt(0).toUpperCase() + segment.slice(1);
   };
 
   const getBreadcrumbPath = (index: number) => {
+    const segment = pathSegments[index];
+
+    // Special case: "project" should link to "projects"
+    if (segment === 'project') {
+      return '/home/projects';
+    }
+
     return '/home/' + pathSegments.slice(0, index + 1).join('/');
   };
 
@@ -45,10 +57,10 @@ export function DynamicBreadcrumb() {
 
         {pathSegments.map((segment, index) => {
           const isLast = index === pathSegments.length - 1;
-          const label = getBreadcrumbLabel(segment);
+          const label = getBreadcrumbLabel(segment, index);
 
           return (
-            <div key={segment} className="flex items-center gap-2">
+            <div key={`${segment}-${index}`} className="flex items-center gap-2">
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 {isLast ? (

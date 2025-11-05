@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, ChevronUp, LogOut, Settings, CreditCard } from "lucide-react";
+import { Home, ChevronUp, LogOut, Settings, CreditCard, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
@@ -31,6 +31,11 @@ const navItems = [
     title: "Home",
     url: "/home",
     icon: Home,
+  },
+  {
+    title: "Projects",
+    url: "/home/projects",
+    icon: FolderOpen,
   },
   {
     title: "Subscription",
@@ -69,16 +74,22 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navItems.map((item) => {
+                // For Projects, also mark as active if we're on a project page
+                const isActive = pathname === item.url ||
+                  (item.url === '/home/projects' && pathname?.startsWith('/home/project/'));
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

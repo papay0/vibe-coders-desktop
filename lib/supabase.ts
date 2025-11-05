@@ -8,6 +8,16 @@ export type UserSettings = {
   updated_at: string
 }
 
+export type Project = {
+  id: string
+  clerk_user_id: string
+  project_name: string
+  project_path: string
+  project_type: 'import' | 'web' | 'mobile'
+  created_at: string
+  updated_at: string
+}
+
 export function createClerkSupabaseClient(getToken: () => Promise<string | null>) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

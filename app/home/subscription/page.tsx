@@ -18,6 +18,8 @@ export default function SubscriptionPage() {
     if (!user || !session) return;
 
     async function loadSettings() {
+      if (!session || !user) return;
+
       setLoadingSettings(true);
       const supabase = createClerkSupabaseClient(() => session.getToken());
 
