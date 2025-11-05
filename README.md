@@ -93,23 +93,21 @@ npm run dev
 
 ### Configuration
 
-**No configuration required!** Public API keys for Clerk, Supabase, and Claude are included in the codebase (`lib/config.ts`).
+**Public API keys** for Clerk and Supabase are included in the codebase (`lib/config.ts`) - no configuration needed!
 
-**To use your own keys** (optional), create a `.env.local` file:
+**Required:** Create a `.env.local` file for the Claude OAuth token:
 
 ```bash
-# Clerk Authentication (optional - defaults provided)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+# Claude Agent SDK (REQUIRED - private key)
+CLAUDE_CODE_OAUTH_TOKEN=your_oauth_token
 
-# Supabase (optional - defaults provided)
+# Optional: Override public keys if you want to use your own
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Claude Agent SDK (optional - defaults provided)
-CLAUDE_CODE_OAUTH_TOKEN=your_oauth_token
 ```
 
-Environment variables take precedence over hardcoded values.
+**Note:** The Claude OAuth token is private and must be kept in `.env.local`. Get one from the [Anthropic Console](https://console.anthropic.com/).
 
 ## 📊 Database Schema
 
