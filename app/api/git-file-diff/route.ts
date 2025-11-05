@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     } else if (status.includes('A') || status.includes('??')) {
       // File was added or is untracked
       oldContent = '';
-      if (fs.existsSync(fullFilePath)) {
+      if (fs.existsSync(fullFilePath) && fs.statSync(fullFilePath).isFile()) {
         newContent = fs.readFileSync(fullFilePath, 'utf8');
       }
     } else {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         oldContent = '';
       }
 
-      if (fs.existsSync(fullFilePath)) {
+      if (fs.existsSync(fullFilePath) && fs.statSync(fullFilePath).isFile()) {
         newContent = fs.readFileSync(fullFilePath, 'utf8');
       }
     }

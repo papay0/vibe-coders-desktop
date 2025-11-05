@@ -94,6 +94,57 @@ export async function POST(request: NextRequest) {
 
     const files = parseGitStatus(statusOutput);
 
+    // Expand directories to show all files within
+    const actualFiles: GitFileStatus[] = [];
+    for (const file of files) {
+      try {
+        const fullPath = path.join(resolvedPath, file.path);
+
+        // If path doesn't exist, it's a deleted file - keep it
+        if (!fs.existsSync(fullPath)) {
+          actualFiles.push(file);
+          continue;
+        }
+
+        const stat = fs.statSync(fullPath);
+
+        if (stat.isFile()) {
+          // It's a file, keep it
+          actualFiles.push(file);
+        } else if (stat.isDirectory()) {
+          // It's a directory, recursively find all files within
+          const findFilesInDir = (dir: string, relativeTo: string): string[] => {
+            const filesInDir: string[] = [];
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+              const entryPath = path.join(dir, entry.name);
+              const relativeEntryPath = path.relative(relativeTo, entryPath);
+
+              if (entry.isFile()) {
+                filesInDir.push(relativeEntryPath);
+              } else if (entry.isDirectory()) {
+                filesInDir.push(...findFilesInDir(entryPath, relativeTo));
+              }
+            }
+
+            return filesInDir;
+          };
+
+          const filesInDir = findFilesInDir(fullPath, resolvedPath);
+          for (const filePath of filesInDir) {
+            actualFiles.push({
+              path: filePath,
+              status: file.status, // Inherit status from parent directory
+            });
+          }
+        }
+      } catch (error) {
+        // If we can't stat it, include it anyway (might be deleted file)
+        actualFiles.push(file);
+      }
+    }
+
     // Get stats for all files using batch numstat
     try {
       const numstatOutput = execSync('git diff --numstat HEAD', {
@@ -116,7 +167,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Apply stats to all files
-      for (const file of files) {
+      for (const file of actualFiles) {
         if (file.status === 'deleted') {
           // Deleted files - count lines from HEAD
           try {
@@ -158,16 +209,16 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error('Error getting git stats:', error);
       // Set all to 0 on error
-      for (const file of files) {
+      for (const file of actualFiles) {
         file.additions = 0;
         file.deletions = 0;
       }
     }
 
     const response: GitDiffResponse = {
-      files,
-      totalFiles: files.length,
-      hasChanges: files.length > 0,
+      files: actualFiles,
+      totalFiles: actualFiles.length,
+      hasChanges: actualFiles.length > 0,
     };
 
     return NextResponse.json(response);
