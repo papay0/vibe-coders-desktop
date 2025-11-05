@@ -217,24 +217,11 @@ setup_repository() {
             echo -e "${RED}${CROSS_MARK}${RESET} Could not access repository directory"
             exit 1
         }
-        # git pull might return non-zero if already up-to-date, so we handle it gracefully
-        # Capture output to a variable instead of a file to avoid permission issues
-        git_output=$(git pull origin main 2>&1) || true
-        git_exit_code=$?
-
-        if [ $git_exit_code -eq 0 ]; then
-            echo -e "${GREEN}${CHECK_MARK}${RESET} Pulled latest changes"
-        else
-            # Check if it's just "already up to date"
-            if echo "$git_output" | grep -q "Already up to date\|already up-to-date"; then
-                echo -e "${GREEN}${CHECK_MARK}${RESET} Already up to date"
-            else
-                echo -e "${YELLOW}${ARROW}${RESET} Could not pull latest changes (continuing anyway)"
-                if [ "$VERBOSE" = true ]; then
-                    echo "$git_output"
-                fi
-            fi
-        fi
+        # Force update to match GitHub, discarding any local changes
+        git fetch origin main > /dev/null 2>&1
+        git reset --hard origin/main > /dev/null 2>&1
+        git clean -fd > /dev/null 2>&1
+        echo -e "${GREEN}${CHECK_MARK}${RESET} Updated to latest version"
     else
         echo -e "${BLUE}${ARROW}${RESET} Cloning repository..."
         mkdir -p "$INSTALL_DIR"
@@ -401,10 +388,14 @@ case "${1:-dev}" in
 
     update)
         echo -e "${GREEN}Updating Vibe Coders...${RESET}\n"
-        git pull origin main
-        echo ""
+        echo -e "${YELLOW}Fetching latest changes...${RESET}"
+        git fetch origin main
+        git reset --hard origin/main
+        git clean -fd
+        echo -e "${GREEN}✓${RESET} Updated to latest version\n"
+        echo -e "${YELLOW}Installing dependencies...${RESET}"
         npm install
-        echo -e "\n${GREEN}✓${RESET} Updated successfully!"
+        echo -e "\n${GREEN}✓${RESET} Update complete!"
         ;;
 
     --help|-h|help)
