@@ -215,7 +215,20 @@ setup_repository() {
     if [ -d "$REPO_DIR" ]; then
         echo -e "${BLUE}${ARROW}${RESET} Repository already exists. Updating..."
         cd "$REPO_DIR"
-        execute_with_spinner "Pulling latest changes" "git pull origin main"
+        # git pull might return non-zero if already up-to-date, so we handle it gracefully
+        if git pull origin main > /tmp/vibe-coders-git-pull.log 2>&1; then
+            echo -e "${GREEN}${CHECK_MARK}${RESET} Pulled latest changes"
+        else
+            # Check if it's just "already up to date"
+            if grep -q "Already up to date\|already up-to-date" /tmp/vibe-coders-git-pull.log; then
+                echo -e "${GREEN}${CHECK_MARK}${RESET} Already up to date"
+            else
+                echo -e "${YELLOW}${ARROW}${RESET} Could not pull latest changes (continuing anyway)"
+                if [ "$VERBOSE" = true ]; then
+                    cat /tmp/vibe-coders-git-pull.log
+                fi
+            fi
+        fi
     else
         echo -e "${BLUE}${ARROW}${RESET} Cloning repository..."
         mkdir -p "$INSTALL_DIR"
