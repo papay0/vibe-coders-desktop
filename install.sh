@@ -27,7 +27,6 @@ REPO_DIR="$INSTALL_DIR/vibe-coders-desktop"
 REPO_URL="https://github.com/papay0/vibe-coders-desktop.git"
 BIN_NAME="vibe-coders"
 NODE_MIN_VERSION="18"
-DEFAULT_PORT="3737"
 
 # Flags
 VERBOSE=false
@@ -278,11 +277,11 @@ setup_cli() {
 
 REPO_DIR="$HOME/.vibe-coders/vibe-coders-desktop"
 VERBOSE=false
-DEFAULT_PORT="3737"
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
 
@@ -302,16 +301,20 @@ detect_os() {
     fi
 }
 
-# Check if port is in use
-is_port_in_use() {
-    local port=$1
-    if command -v lsof > /dev/null 2>&1; then
-        lsof -i ":${port}" > /dev/null 2>&1
-    elif command -v netstat > /dev/null 2>&1; then
-        netstat -an | grep ":${port}" | grep LISTEN > /dev/null 2>&1
-    else
-        # Fallback: assume not in use
-        return 1
+# Kill existing dev server for this project
+kill_existing_server() {
+    # Find processes running 'next dev' from this specific directory
+    local pids=$(lsof -t "$REPO_DIR" 2>/dev/null | sort -u)
+
+    if [ -n "$pids" ]; then
+        echo -e "${YELLOW}Stopping existing dev server...${RESET}"
+        echo "$pids" | while read -r pid; do
+            # Check if it's a node/next process
+            if ps -p "$pid" -o command= 2>/dev/null | grep -q "next dev\|npm run dev"; then
+                kill "$pid" 2>/dev/null || true
+            fi
+        done
+        sleep 1
     fi
 }
 
@@ -367,23 +370,23 @@ cd "$REPO_DIR" || exit 1
 
 case "${1:-dev}" in
     dev|"")
-        # Check if server is already running
-        if is_port_in_use "$DEFAULT_PORT"; then
-            echo -e "${YELLOW}Dev server is already running on port ${DEFAULT_PORT}${RESET}"
-            echo -e "${CYAN}Opening browser at http://localhost:${DEFAULT_PORT}${RESET}\n"
-            open_browser "http://localhost:${DEFAULT_PORT}"
-            echo -e "${GREEN}✓${RESET} Browser opened. Server is still running in the background."
-        else
-            echo -e "${GREEN}Starting Vibe Coders development server...${RESET}"
-            echo -e "${CYAN}Opening browser at http://localhost:${DEFAULT_PORT}${RESET}"
-            echo -e "${CYAN}Press Ctrl+C to stop${RESET}\n"
+        # Kill any existing dev server for this project
+        kill_existing_server
 
-            # Open browser in background
-            open_browser "http://localhost:${DEFAULT_PORT}" &
+        echo -e "${GREEN}Starting Vibe Coders development server...${RESET}"
+        echo -e "${CYAN}Press Ctrl+C to stop${RESET}\n"
 
-            # Start dev server
-            execute_cmd npm run dev
-        fi
+        # Start dev server and capture output to find the actual port
+        npm run dev 2>&1 | while IFS= read -r line; do
+            echo "$line"
+
+            # Look for Next.js URL in output (e.g., "Local:        http://localhost:3000")
+            if [[ "$line" =~ Local:[[:space:]]+http://localhost:([0-9]+) ]]; then
+                port="${BASH_REMATCH[1]}"
+                echo -e "\n${CYAN}Opening browser at http://localhost:${port}${RESET}\n"
+                open_browser "http://localhost:${port}" &
+            fi
+        done
         ;;
 
     build)

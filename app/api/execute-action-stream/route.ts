@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         console.log('Params:', params);
 
         const { prompt, cwd } = getPromptForAction(action, params);
+        console.log('CWD:', cwd);
 
         for await (const event of query({
           prompt,

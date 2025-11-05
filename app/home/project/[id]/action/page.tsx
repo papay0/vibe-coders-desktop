@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useSession } from '@clerk/nextjs';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
@@ -27,9 +27,10 @@ export default function ActionPage() {
   const [actionMessages, setActionMessages] = useState<AIMessage[]>([]);
   const [actionType, setActionType] = useState<string>('');
   const [actionTitle, setActionTitle] = useState<string>('');
+  const hasExecutedRef = useRef(false);
 
   useEffect(() => {
-    if (!user || !session || !params.id) return;
+    if (!user || !session || !params.id || hasExecutedRef.current) return;
 
     async function loadProject() {
       setLoading(true);
@@ -61,6 +62,9 @@ export default function ActionPage() {
             } else if (action === 'kill-server') {
               setActionTitle('Close Website Preview');
             }
+
+            // Mark as executed to prevent duplicate executions
+            hasExecutedRef.current = true;
 
             // Start executing the action
             executeAction(data, action as 'start-dev-server' | 'kill-server');
