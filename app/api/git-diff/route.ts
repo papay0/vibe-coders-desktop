@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 export const maxDuration = 30;
 
@@ -20,13 +21,17 @@ interface GitDiffResponse {
 
 function parseGitStatus(statusOutput: string): GitFileStatus[] {
   const files: GitFileStatus[] = [];
-  const lines = statusOutput.trim().split('\n').filter(line => line.trim());
+  const lines = statusOutput.split('\n');
 
   for (const line of lines) {
-    if (line.length < 2) continue;
+    // Skip empty lines
+    if (!line || line.length < 3) continue;
 
     const statusCode = line.substring(0, 2);
-    const filePath = line.substring(3);
+    const filePath = line.substring(3).trim(); // Trim the filename only
+
+    // Skip if no filename
+    if (!filePath) continue;
 
     let status: GitFileStatus['status'] = 'modified';
 
@@ -89,66 +94,73 @@ export async function POST(request: NextRequest) {
 
     const files = parseGitStatus(statusOutput);
 
-    // Get stats for each file (additions/deletions)
-    for (const file of files) {
-      if (file.status === 'untracked' || file.status === 'added') {
-        // For new files, count total lines
-        try {
-          const fileContent = execSync(`git diff --cached -- "${file.path}"`, {
-            cwd: resolvedPath,
-            encoding: 'utf8',
-            stdio: 'pipe',
-          });
+    // Get stats for all files using batch numstat
+    try {
+      const numstatOutput = execSync('git diff --numstat HEAD', {
+        cwd: resolvedPath,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
 
-          const additions = (fileContent.match(/^\+(?!\+\+)/gm) || []).length;
-          file.additions = additions;
-          file.deletions = 0;
-        } catch {
-          // If not staged, try unstaged
+      const statsMap = new Map<string, { additions: number; deletions: number }>();
+      const lines = numstatOutput.trim().split('\n').filter(line => line.trim());
+
+      for (const line of lines) {
+        const parts = line.split('\t');
+        if (parts.length >= 3) {
+          const additions = parseInt(parts[0]) || 0;
+          const deletions = parseInt(parts[1]) || 0;
+          const filePath = parts[2];
+          statsMap.set(filePath, { additions, deletions });
+        }
+      }
+
+      // Apply stats to all files
+      for (const file of files) {
+        if (file.status === 'deleted') {
+          // Deleted files - count lines from HEAD
           try {
-            const lines = execSync(`wc -l "${file.path}"`, {
+            const headContent = execSync(`git show HEAD:"${file.path}"`, {
               cwd: resolvedPath,
               encoding: 'utf8',
               stdio: 'pipe',
             });
-            file.additions = parseInt(lines.trim().split(' ')[0]) || 0;
+            file.additions = 0;
+            file.deletions = headContent.split('\n').length;
+          } catch {
+            file.additions = 0;
+            file.deletions = 0;
+          }
+        } else if (file.status === 'untracked' || file.status === 'added') {
+          // New files - count all lines
+          try {
+            const fullPath = path.join(resolvedPath, file.path);
+            const content = fs.readFileSync(fullPath, 'utf8');
+            file.additions = content.split('\n').length;
             file.deletions = 0;
           } catch {
             file.additions = 0;
             file.deletions = 0;
           }
+        } else {
+          // Modified files - get from statsMap
+          const stats = statsMap.get(file.path);
+          if (stats) {
+            file.additions = stats.additions;
+            file.deletions = stats.deletions;
+          } else {
+            // Fallback if not in map
+            file.additions = 0;
+            file.deletions = 0;
+          }
         }
-      } else if (file.status === 'deleted') {
-        // For deleted files, count total lines from HEAD
-        try {
-          const lines = execSync(`git show HEAD:"${file.path}" | wc -l`, {
-            cwd: resolvedPath,
-            encoding: 'utf8',
-            stdio: 'pipe',
-            shell: '/bin/bash',
-          });
-          file.additions = 0;
-          file.deletions = parseInt(lines.trim()) || 0;
-        } catch {
-          file.additions = 0;
-          file.deletions = 0;
-        }
-      } else {
-        // For modified files, get actual diff stats
-        try {
-          const stats = execSync(`git diff --numstat HEAD -- "${file.path}"`, {
-            cwd: resolvedPath,
-            encoding: 'utf8',
-            stdio: 'pipe',
-          });
-
-          const parts = stats.trim().split('\t');
-          file.additions = parseInt(parts[0]) || 0;
-          file.deletions = parseInt(parts[1]) || 0;
-        } catch {
-          file.additions = 0;
-          file.deletions = 0;
-        }
+      }
+    } catch (error) {
+      console.error('Error getting git stats:', error);
+      // Set all to 0 on error
+      for (const file of files) {
+        file.additions = 0;
+        file.deletions = 0;
       }
     }
 

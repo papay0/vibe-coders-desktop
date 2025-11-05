@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useSession } from '@clerk/nextjs';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
 import { SetBreadcrumbName } from '@/components/breadcrumb-context';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, FileText, FilePlus, FileX, FileEdit, Loader2, RefreshCw } from 'lucide-react';
-import { Diff, Hunk, parseDiff } from 'react-diff-view';
-import 'react-diff-view/style/index.css';
+import { FileText, FilePlus, FileX, FileEdit, Loader2, RefreshCw } from 'lucide-react';
+import { DiffEditor } from '@monaco-editor/react';
 
 interface GitFileStatus {
   path: string;
@@ -29,6 +27,7 @@ interface GitDiffResponse {
 interface GitFileDiffResponse {
   oldContent: string;
   newContent: string;
+  unifiedDiff: string;
   fileName: string;
   language: string;
   error?: string;
@@ -46,9 +45,11 @@ export default function ChangesPage() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState<GitFileDiffResponse | null>(null);
   const [loadingDiff, setLoadingDiff] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   useEffect(() => {
-    if (!user || !session || !params.id) return;
+    // Don't reload if we've already loaded the project
+    if (!user || !session || !params.id || hasLoadedOnce) return;
 
     async function loadProject() {
       setLoading(true);
@@ -69,6 +70,7 @@ export default function ChangesPage() {
         } else {
           setProject(data);
           await loadGitStatus(data.project_path);
+          setHasLoadedOnce(true); // Mark as loaded to prevent reload on tab switch
         }
       } catch (error) {
         console.error('Error loading project:', error);
@@ -79,7 +81,7 @@ export default function ChangesPage() {
     }
 
     loadProject();
-  }, [user, session, params.id]);
+  }, [user, session, params.id, hasLoadedOnce]);
 
   const loadGitStatus = async (projectPath: string) => {
     try {
@@ -167,7 +169,6 @@ export default function ChangesPage() {
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-red-500">{error || 'Project not found'}</p>
         <Button onClick={() => router.push('/home/projects')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Projects
         </Button>
       </div>
@@ -179,23 +180,13 @@ export default function ChangesPage() {
       <SetBreadcrumbName name={getDisplayName(project)} />
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="border-b bg-white dark:bg-slate-900 px-6 py-4">
+        <div className="border-b border-gray-200 dark:border-[#3e3e42] px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push(`/home/project/${params.id}`)}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">Changes</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {gitStatus?.totalFiles || 0} file{gitStatus?.totalFiles !== 1 ? 's' : ''} changed
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Changes</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {gitStatus?.totalFiles || 0} file{gitStatus?.totalFiles !== 1 ? 's' : ''} changed
+              </p>
             </div>
             <Button variant="outline" size="sm" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -207,9 +198,9 @@ export default function ChangesPage() {
         {/* Main Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* File List Sidebar */}
-          <div className="w-80 border-r bg-gray-50 dark:bg-slate-900">
-            <div className="p-4 border-b bg-white dark:bg-slate-800">
-              <h3 className="font-semibold">Changed Files</h3>
+          <div className="w-80 border-r border-gray-200 dark:border-[#3e3e42] bg-white dark:bg-[#252526]">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3e3e42]">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Changed Files</h3>
             </div>
             <ScrollArea className="h-[calc(100vh-12rem)]">
               {gitStatus?.hasChanges ? (
@@ -220,8 +211,8 @@ export default function ChangesPage() {
                       onClick={() => handleFileSelect(file.path)}
                       className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
                         selectedFile === file.path
-                          ? 'bg-teal-100 dark:bg-teal-900/30 border border-teal-300 dark:border-teal-700'
-                          : 'hover:bg-gray-100 dark:hover:bg-slate-800'
+                          ? 'bg-teal-100 dark:bg-[#37373d] border border-teal-300 dark:border-[#007acc]'
+                          : 'hover:bg-gray-100 dark:hover:bg-[#2a2d2e]'
                       }`}
                     >
                       {getFileIcon(file.status)}
@@ -249,26 +240,26 @@ export default function ChangesPage() {
           </div>
 
           {/* Diff Viewer */}
-          <div className="flex-1 overflow-hidden bg-white dark:bg-slate-900">
+          <div className="flex-1 overflow-hidden bg-white dark:bg-[#1e1e1e]">
             {loadingDiff ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
               </div>
             ) : fileDiff && selectedFile ? (
-              <ScrollArea className="h-full">
-                <div className="p-6">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="font-mono text-sm text-gray-700 dark:text-gray-300">
-                      {fileDiff.fileName}
-                    </h3>
-                  </div>
-
-                  {/* Simple line-by-line diff display */}
-                  <div className="rounded-lg border dark:border-slate-700 overflow-hidden font-mono text-sm">
-                    <DiffView oldContent={fileDiff.oldContent} newContent={fileDiff.newContent} />
-                  </div>
+              <div className="h-full flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-[#3e3e42]">
+                  <h3 className="font-mono text-sm text-gray-700 dark:text-gray-200">
+                    {fileDiff.fileName}
+                  </h3>
                 </div>
-              </ScrollArea>
+                <div className="flex-1">
+                  <DiffView
+                    oldContent={fileDiff.oldContent}
+                    newContent={fileDiff.newContent}
+                    fileName={fileDiff.fileName}
+                  />
+                </div>
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
                 <div className="text-center">
@@ -284,72 +275,95 @@ export default function ChangesPage() {
   );
 }
 
-// Simple diff component using react-diff-view
-function DiffView({ oldContent, newContent }: { oldContent: string; newContent: string }) {
-  const [viewType, setViewType] = useState<'split' | 'unified'>('split');
+// Detect language from file extension
+function getLanguageFromFileName(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
-  // Create a unified diff format that react-diff-view can parse
-  const createUnifiedDiff = (oldStr: string, newStr: string): string => {
-    const oldLines = oldStr.split('\n');
-    const newLines = newStr.split('\n');
-
-    // Simple diff: show all old lines as deletions, all new lines as additions
-    let diff = '--- old\n+++ new\n@@ -1,' + oldLines.length + ' +1,' + newLines.length + ' @@\n';
-
-    oldLines.forEach(line => {
-      diff += '-' + line + '\n';
-    });
-
-    newLines.forEach(line => {
-      diff += '+' + line + '\n';
-    });
-
-    return diff;
+  const languageMap: Record<string, string> = {
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'js': 'javascript',
+    'jsx': 'javascript',
+    'json': 'json',
+    'css': 'css',
+    'scss': 'scss',
+    'sass': 'sass',
+    'less': 'less',
+    'html': 'html',
+    'xml': 'xml',
+    'py': 'python',
+    'rb': 'ruby',
+    'go': 'go',
+    'rs': 'rust',
+    'java': 'java',
+    'c': 'c',
+    'cpp': 'cpp',
+    'cs': 'csharp',
+    'php': 'php',
+    'swift': 'swift',
+    'kt': 'kotlin',
+    'dart': 'dart',
+    'sql': 'sql',
+    'sh': 'shell',
+    'bash': 'shell',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'toml': 'toml',
+    'md': 'markdown',
+    'graphql': 'graphql',
+    'vue': 'vue',
+    'svelte': 'svelte',
   };
 
-  try {
-    const diffText = createUnifiedDiff(oldContent, newContent);
-    const files = parseDiff(diffText);
+  return languageMap[ext] || 'plaintext';
+}
 
-    if (files.length === 0) {
-      return (
-        <div className="p-8 text-center text-gray-500">
-          No differences detected
-        </div>
-      );
-    }
+// Monaco DiffEditor component
+function DiffView({ oldContent, newContent, fileName }: { oldContent: string; newContent: string; fileName: string }) {
+  const [isDark, setIsDark] = useState(false);
+  const language = getLanguageFromFileName(fileName);
 
-    return (
-      <div>
-        <div className="flex gap-2 p-2 border-b dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
-          <Button
-            variant={viewType === 'split' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewType('split')}
-          >
-            Split View
-          </Button>
-          <Button
-            variant={viewType === 'unified' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewType('unified')}
-          >
-            Unified View
-          </Button>
-        </div>
-        {files.map((file, idx) => (
-          <Diff key={idx} viewType={viewType} diffType={file.type} hunks={file.hunks}>
-            {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
-          </Diff>
-        ))}
-      </div>
-    );
-  } catch (error) {
-    console.error('Error parsing diff:', error);
-    return (
-      <div className="p-8 text-center text-red-500">
-        Error displaying diff
-      </div>
-    );
-  }
+  // Detect dark mode
+  useEffect(() => {
+    const checkDarkMode = () => {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      setIsDark(isDarkMode);
+    };
+
+    checkDarkMode();
+
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <DiffEditor
+      original={oldContent}
+      modified={newContent}
+      language={language}
+      theme={isDark ? 'vs-dark' : 'light'}
+      height="calc(100vh - 16rem)"
+      options={{
+        readOnly: true,
+        renderSideBySide: true,
+        enableSplitViewResizing: true,
+        minimap: { enabled: true },
+        scrollBeyondLastLine: false,
+        fontSize: 13,
+        wordWrap: 'off',
+        lineNumbers: 'on',
+        renderWhitespace: 'selection',
+        diffWordWrap: 'off',
+        ignoreTrimWhitespace: false,
+        renderIndicators: true,
+        originalEditable: false,
+        automaticLayout: true,
+      }}
+    />
+  );
 }

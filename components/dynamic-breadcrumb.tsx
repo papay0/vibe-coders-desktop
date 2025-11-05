@@ -22,11 +22,18 @@ export function DynamicBreadcrumb() {
   // Remove 'home' prefix since we always show "Home" as root
   const pathSegments = segments.slice(1);
 
+  const isUUID = (str: string) => {
+    // Check if string looks like a UUID (8-4-4-4-12 pattern)
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  };
+
   const getBreadcrumbLabel = (segment: string, index: number) => {
     const isLast = index === pathSegments.length - 1;
 
-    // Use custom name only for the last segment
-    if (isLast && customName) return customName;
+    // Use custom name ONLY for UUID segments
+    if (isUUID(segment) && customName) {
+      return customName;
+    }
 
     // Special case: "project" should show as "Projects"
     if (segment === 'project') return 'Projects';
@@ -58,6 +65,11 @@ export function DynamicBreadcrumb() {
         {pathSegments.map((segment, index) => {
           const isLast = index === pathSegments.length - 1;
           const label = getBreadcrumbLabel(segment, index);
+
+          // Skip UUID segments in breadcrumb display unless they have a custom name
+          if (isUUID(segment) && !customName) {
+            return null;
+          }
 
           return (
             <div key={`${segment}-${index}`} className="flex items-center gap-2">

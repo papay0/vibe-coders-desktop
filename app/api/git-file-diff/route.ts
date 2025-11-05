@@ -8,6 +8,7 @@ export const maxDuration = 30;
 interface GitFileDiffResponse {
   oldContent: string;
   newContent: string;
+  unifiedDiff: string;
   fileName: string;
   language: string;
   error?: string;
@@ -71,6 +72,27 @@ export async function POST(request: NextRequest) {
 
     let oldContent = '';
     let newContent = '';
+    let unifiedDiff = '';
+
+    // Get the actual git diff output
+    try {
+      unifiedDiff = execSync(`git diff HEAD -- "${filePath}"`, {
+        cwd: resolvedProjectPath,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      // If no diff from HEAD, might be untracked file
+      try {
+        unifiedDiff = execSync(`git diff --no-index /dev/null "${filePath}"`, {
+          cwd: resolvedProjectPath,
+          encoding: 'utf8',
+          stdio: 'pipe',
+        });
+      } catch {
+        unifiedDiff = '';
+      }
+    }
 
     // Check file status
     const statusOutput = execSync(`git status --porcelain -- "${filePath}"`, {
@@ -119,6 +141,7 @@ export async function POST(request: NextRequest) {
     const response: GitFileDiffResponse = {
       oldContent,
       newContent,
+      unifiedDiff,
       fileName: path.basename(filePath),
       language: detectLanguage(filePath),
     };
@@ -130,6 +153,7 @@ export async function POST(request: NextRequest) {
       {
         oldContent: '',
         newContent: '',
+        unifiedDiff: '',
         fileName: '',
         language: 'text',
         error: error instanceof Error ? error.message : 'Unknown error',

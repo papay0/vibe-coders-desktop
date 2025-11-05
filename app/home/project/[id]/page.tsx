@@ -31,9 +31,11 @@ export default function ProjectPage() {
   const [actionMessages, setActionMessages] = useState<AIMessage[]>([]);
   const [currentAction, setCurrentAction] = useState<string>('');
   const [advancedMode, setAdvancedMode] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   useEffect(() => {
-    if (!user || !session || !params.id) return;
+    // Don't reload if we've already loaded the project
+    if (!user || !session || !params.id || hasLoadedOnce) return;
 
     async function loadProject() {
       setLoading(true);
@@ -53,6 +55,7 @@ export default function ProjectPage() {
           setError('Project not found');
         } else {
           setProject(data);
+          setHasLoadedOnce(true); // Mark as loaded to prevent reload on tab switch
         }
       } catch (error) {
         console.error('Error loading project:', error);
@@ -63,7 +66,7 @@ export default function ProjectPage() {
     }
 
     loadProject();
-  }, [user, session, params.id]);
+  }, [user, session, params.id, hasLoadedOnce]);
 
   const getDisplayName = (proj: Project) => {
     // If the name looks like a path, extract just the folder name
