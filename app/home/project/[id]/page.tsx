@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { FolderOpen, Loader2, Play, Square, Zap, Globe, X } from 'lucide-react';
+import { FolderOpen, Loader2, Play, Square, Zap, Globe, X, GitCompare } from 'lucide-react';
 import { AIProgressChat } from '@/components/ai-progress-chat';
 
 interface AIMessage {
@@ -253,7 +253,7 @@ export default function ProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               <Button
                 onClick={() => executeAction('start-dev-server', advancedMode ? 'Start Dev Server' : 'Open Website Preview')}
                 disabled={actionInProgress}
@@ -298,6 +298,26 @@ export default function ProjectPage() {
                   {advancedMode
                     ? 'Find and stop any running development servers for this project'
                     : 'Stop the website preview'
+                  }
+                </span>
+              </Button>
+
+              <Button
+                onClick={() => router.push(`/home/project/${project.id}/changes`)}
+                disabled={actionInProgress}
+                className="gap-2 h-auto py-4 flex-col items-start"
+                variant="outline"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <GitCompare className="h-5 w-5 text-blue-600" />
+                  <span className="font-semibold">
+                    {advancedMode ? 'View Changes' : 'See What Changed'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground text-left">
+                  {advancedMode
+                    ? 'View git diff and see what the AI changed in your project'
+                    : 'See what was changed in your code'
                   }
                 </span>
               </Button>
