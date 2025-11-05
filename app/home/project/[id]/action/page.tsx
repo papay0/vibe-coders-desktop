@@ -32,6 +32,9 @@ export default function ActionPage() {
   useEffect(() => {
     if (!user || !session || !params.id || hasExecutedRef.current) return;
 
+    // Mark as executed IMMEDIATELY to prevent race conditions
+    hasExecutedRef.current = true;
+
     async function loadProject() {
       setLoading(true);
       try {
@@ -62,9 +65,6 @@ export default function ActionPage() {
             } else if (action === 'kill-server') {
               setActionTitle('Close Website Preview');
             }
-
-            // Mark as executed to prevent duplicate executions
-            hasExecutedRef.current = true;
 
             // Start executing the action
             executeAction(data, action as 'start-dev-server' | 'kill-server');
