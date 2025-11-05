@@ -35,13 +35,13 @@ export default function Home() {
                 Vibe Coders
               </h1>
               <p className="mt-3 text-xl text-gray-700 dark:text-gray-300">
-                Code with AI, no terminal fear
+                Want to use Cursor or Claude Code but stuck on terminal commands?
               </p>
             </div>
 
             <div className="space-y-4">
               <p className="text-gray-600 dark:text-gray-400">
-                Build amazing projects without touching the command line. Vibe Coders brings AI-powered development to your desktop, handling all the technical complexity while you focus on creating.
+                Don't let npm, git, and localhost overwhelm you. We turn all the technical setup into simple clicks so you can focus on building.
               </p>
 
               <div className="space-y-3">
