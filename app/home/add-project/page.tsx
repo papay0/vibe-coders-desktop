@@ -141,14 +141,17 @@ export default function AddProjectPage() {
 
     try {
       // Stream events from the API
-      const response = await fetch('/api/create-web-project-stream', {
+      const response = await fetch('/api/execute-action-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: projectName.trim(),
-          path: projectPath.trim(),
+          action: 'create-web-project',
+          params: {
+            name: projectName.trim(),
+            path: projectPath.trim(),
+          },
         }),
       });
 
@@ -257,10 +260,10 @@ export default function AddProjectPage() {
             </p>
 
             {/* Progress Indicator */}
-            {step !== 'create-web' && step !== 'creating' && (
+            {step !== 'create-web' && step !== 'creating' && step !== 'create-mobile' && (
               <div className="flex items-center gap-3 mt-8 max-w-md mx-auto">
-                <div className={`h-2 rounded-full flex-1 transition-colors ${step === 'select' ? 'bg-teal-600' : 'bg-teal-600'}`} />
-                <div className={`h-2 rounded-full flex-1 transition-colors ${step !== 'select' && step !== 'create-web' ? 'bg-teal-600' : 'bg-muted'}`} />
+                <div className="h-2 rounded-full flex-1 bg-teal-600" />
+                <div className={`h-2 rounded-full flex-1 transition-colors ${step === 'select' ? 'bg-muted' : 'bg-teal-600'}`} />
               </div>
             )}
           </div>
