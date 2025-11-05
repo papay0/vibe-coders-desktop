@@ -214,18 +214,25 @@ setup_repository() {
 
     if [ -d "$REPO_DIR" ]; then
         echo -e "${BLUE}${ARROW}${RESET} Repository already exists. Updating..."
-        cd "$REPO_DIR"
+        cd "$REPO_DIR" || {
+            echo -e "${RED}${CROSS_MARK}${RESET} Could not access repository directory"
+            exit 1
+        }
         # git pull might return non-zero if already up-to-date, so we handle it gracefully
-        if git pull origin main > /tmp/vibe-coders-git-pull.log 2>&1; then
+        # Capture output to a variable instead of a file to avoid permission issues
+        git_output=$(git pull origin main 2>&1) || true
+        git_exit_code=$?
+
+        if [ $git_exit_code -eq 0 ]; then
             echo -e "${GREEN}${CHECK_MARK}${RESET} Pulled latest changes"
         else
             # Check if it's just "already up to date"
-            if grep -q "Already up to date\|already up-to-date" /tmp/vibe-coders-git-pull.log; then
+            if echo "$git_output" | grep -q "Already up to date\|already up-to-date"; then
                 echo -e "${GREEN}${CHECK_MARK}${RESET} Already up to date"
             else
                 echo -e "${YELLOW}${ARROW}${RESET} Could not pull latest changes (continuing anyway)"
                 if [ "$VERBOSE" = true ]; then
-                    cat /tmp/vibe-coders-git-pull.log
+                    echo "$git_output"
                 fi
             fi
         fi

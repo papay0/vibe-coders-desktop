@@ -26,8 +26,8 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-gray-900 dark:to-gray-800 p-4">
-      <div className="w-full max-w-4xl">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <div className="w-full max-w-6xl">
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left side - Value proposition */}
           <div className="space-y-6">
             <div>
@@ -79,7 +79,7 @@ export default function Home() {
           </div>
 
           {/* Right side - Sign in */}
-          <div className="flex justify-center lg:justify-end">
+          <div className="flex justify-center md:justify-end">
             <SignIn />
           </div>
         </div>
