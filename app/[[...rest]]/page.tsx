@@ -32,7 +32,7 @@ export default function Home() {
           <div className="space-y-6">
             <div>
               <h1 className="text-5xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                Vibe Coders
+                Appily
               </h1>
               <p className="mt-3 text-xl text-gray-700 dark:text-gray-300">
                 Want to use Cursor or Claude Code but stuck on terminal commands?
