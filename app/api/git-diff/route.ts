@@ -207,7 +207,6 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (error) {
-      console.error('Error getting git stats:', error);
       // Set all to 0 on error
       for (const file of actualFiles) {
         file.additions = 0;
@@ -223,7 +222,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Git diff error:', error);
     return NextResponse.json(
       {
         files: [],

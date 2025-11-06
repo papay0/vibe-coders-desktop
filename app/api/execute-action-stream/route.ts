@@ -19,8 +19,6 @@ async function executeProjectCreationDirectly(
 
     const command = `npx create-next-app@latest ${name} --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --turbopack --use-npm --yes && cd ${name} && npx shadcn@latest init -y -d && npx shadcn@latest add -a -y && git add --all && git commit -m "Initial commit"`;
 
-    console.log('[Project Creation] Command:', command);
-    console.log('[Project Creation] CWD:', parentPath);
 
     sendMessage(`🔧 Running command to create project "${name}"...`, 'tool');
 
@@ -47,7 +45,6 @@ async function executeProjectCreationDirectly(
       output += text;
       lastUpdate = Date.now();
 
-      console.log('[Project Creation] stdout:', text.substring(0, 200));
 
       // Send updates for key milestones
       if (text.includes('Creating a new Next.js app')) {
@@ -64,7 +61,6 @@ async function executeProjectCreationDirectly(
     process.stderr?.on('data', (data) => {
       const text = data.toString();
       errorOutput += text;
-      console.error('[Project Creation] stderr:', text.substring(0, 200));
 
       // npm/npx often output progress to stderr, which is not an error
       if (text.includes('warn') || text.includes('deprecated')) {
@@ -80,15 +76,11 @@ async function executeProjectCreationDirectly(
 
     process.on('close', (code) => {
       clearInterval(progressInterval);
-      console.log('[Project Creation] Process closed with code:', code);
-      console.log('[Project Creation] Output length:', output.length);
-      console.log('[Project Creation] Error output length:', errorOutput.length);
 
       if (code === 0) {
         sendMessage('✅ Project created successfully! All components installed and initial commit made.', 'text');
         resolve(true);
       } else {
-        console.error('[Project Creation] Full error output:', errorOutput);
         sendError(`Failed to create project. Exit code: ${code}\n${errorOutput.substring(0, 1000)}`);
         resolve(false);
       }
@@ -96,7 +88,6 @@ async function executeProjectCreationDirectly(
 
     process.on('error', (error) => {
       clearInterval(progressInterval);
-      console.error('[Project Creation] Process error:', error);
       sendError(`Failed to execute command: ${error.message}`);
       resolve(false);
     });
@@ -134,7 +125,6 @@ export async function POST(request: Request) {
   } else {
     const { projectPath } = params as { projectPath: string };
     if (!existsSync(projectPath)) {
-      console.error('Project directory does not exist:', projectPath);
       return new Response(
         JSON.stringify({
           error: `Project directory does not exist: ${projectPath}`,
@@ -160,14 +150,10 @@ export async function POST(request: Request) {
       };
 
       try {
-        console.log('=== Executing Action ===');
-        console.log('Action:', action);
-        console.log('Params:', params);
 
         // For create-web-project, execute directly without LLM
         if (action === 'create-web-project') {
           const { name, path: parentPath } = params as { name: string; path: string };
-          console.log('Using direct execution for project creation');
 
           const success = await executeProjectCreationDirectly(name, parentPath, sendMessage, sendError);
 
@@ -184,8 +170,6 @@ export async function POST(request: Request) {
 
         // For other actions, use Claude Code
         const { prompt, cwd } = getPromptForAction(action, params);
-        console.log('CWD:', cwd);
-        console.log('Using Claude Code for action execution');
 
         for await (const event of query({
           prompt,
@@ -196,14 +180,12 @@ export async function POST(request: Request) {
             maxBudgetUsd: 1.0,
           },
         })) {
-          console.log('Event type:', event.type);
 
           if (event.type === 'assistant') {
             const content = event.message.content;
             if (Array.isArray(content)) {
               for (const block of content) {
                 if (block.type === 'text') {
-                  console.log('Sending message:', block.text.substring(0, 100));
                   sendMessage(block.text, 'text');
                 } else if (block.type === 'tool_use') {
                   const toolName = block.name;
@@ -232,9 +214,6 @@ export async function POST(request: Request) {
               }
             }
           } else if (event.type === 'result') {
-            console.log('Query completed');
-            console.log('Turns used:', event.num_turns);
-            console.log('Is error:', event.is_error);
 
             if (event.is_error) {
               sendError('Claude Code encountered an error');
@@ -250,7 +229,6 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       } catch (error) {
-        console.error('Error:', error);
         sendError(error instanceof Error ? error.message : 'Failed to execute action');
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();

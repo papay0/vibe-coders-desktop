@@ -44,7 +44,6 @@ export function AddProjectDialog({ open, onOpenChange, onProjectAdded }: AddProj
       setStep('import');
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        console.error('Error selecting folder:', err);
         alert('Failed to select folder. Make sure your browser supports folder selection.');
       }
     }
@@ -79,7 +78,6 @@ export function AddProjectDialog({ open, onOpenChange, onProjectAdded }: AddProj
       onOpenChange(false);
       onProjectAdded();
     } catch (error) {
-      console.error('Error saving project:', error);
       alert('Failed to save project: ' + (error as Error).message);
     } finally {
       setLoading(false);

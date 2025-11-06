@@ -49,7 +49,6 @@ export default function SubscriptionPage() {
       }
     } catch (error) {
       if (signal?.aborted) return; // Ignore errors from aborted requests
-      console.error('Error loading settings:', error);
     } finally {
       if (!signal?.aborted) {
         setLoadingSettings(false);
@@ -72,7 +71,6 @@ export default function SubscriptionPage() {
   useEffect(() => {
     if (!user?.id || !session) return;
 
-    console.log('📡 [Subscription] Setting up subscription for user settings');
     const supabase = createClerkSupabaseClient(() => session.getToken());
 
     const filter = `clerk_user_id=eq.${user.id}`;
@@ -85,25 +83,16 @@ export default function SubscriptionPage() {
         table: 'user_settings',
         filter,
       }, (payload) => {
-        console.log('📡 [Subscription] Settings change detected:', payload);
 
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          console.log('📡 [Subscription] Updating settings from subscription');
           setSettings(payload.new as UserSettings);
         } else if (payload.eventType === 'DELETE') {
-          console.log('📡 [Subscription] Settings deleted');
           setSettings(null);
         }
       })
-      .subscribe((status, err) => {
-        console.log('📡 [Subscription] Subscription status:', status);
-        if (err) {
-          console.error('📡 [Subscription] Subscription error:', err);
-        }
-      });
+      .subscribe();
 
     return () => {
-      console.log('📡 [Subscription] Unsubscribing from user settings');
       supabase.removeChannel(channel);
     };
   }, [user?.id, session]);

@@ -37,7 +37,6 @@ export default function HomePage() {
       setProjects(data || []);
     } catch (error) {
       if (signal?.aborted) return; // Ignore errors from aborted requests
-      console.error('Error loading projects:', error);
     } finally {
       if (!signal?.aborted) {
         setLoading(false);
@@ -60,11 +59,9 @@ export default function HomePage() {
   useEffect(() => {
     if (!user?.id || !session) return;
 
-    console.log('📡 [Home] Setting up subscription for user.id:', user.id);
     const supabase = createClerkSupabaseClient(() => session.getToken());
 
     const filter = `clerk_user_id=eq.${user.id}`;
-    console.log('📡 [Home] Using server-side filter:', filter);
 
     const channel = supabase
       .channel('projects-home-changes')
@@ -74,29 +71,18 @@ export default function HomePage() {
         table: 'projects',
         filter, // Server-side filter now works with native Supabase integration
       }, (payload) => {
-        console.log('📡 [Home] Realtime change detected:', payload);
-
         // Handle different event types using the payload directly
         if (payload.eventType === 'INSERT') {
-          console.log('📡 [Home] Adding new project from subscription:', payload.new);
           setProjects(prev => [payload.new as Project, ...prev]);
         } else if (payload.eventType === 'UPDATE') {
-          console.log('📡 [Home] Updating project from subscription:', payload.new);
           setProjects(prev => prev.map(p => p.id === payload.new.id ? payload.new as Project : p));
         } else if (payload.eventType === 'DELETE') {
-          console.log('📡 [Home] Deleting project from subscription:', payload.old);
           setProjects(prev => prev.filter(p => p.id !== payload.old.id));
         }
       })
-      .subscribe((status, err) => {
-        console.log('📡 [Home] Subscription status:', status);
-        if (err) {
-          console.error('📡 [Home] Subscription error:', err);
-        }
-      });
+      .subscribe();
 
     return () => {
-      console.log('📡 [Home] Unsubscribing from realtime');
       supabase.removeChannel(channel);
     };
   }, [user?.id, session]);
@@ -116,7 +102,6 @@ export default function HomePage() {
 
       setProjects(projects.filter(p => p.id !== projectId));
     } catch (error) {
-      console.error('Error deleting project:', error);
       alert('Failed to delete project');
     }
   };

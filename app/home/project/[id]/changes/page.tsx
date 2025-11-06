@@ -67,7 +67,6 @@ export default function ChangesPage() {
       }
     } catch (error) {
       if (signal?.aborted) return; // Ignore errors from aborted requests
-      console.error('Error loading git status:', error);
     }
   }, []);
 
@@ -87,7 +86,6 @@ export default function ChangesPage() {
       setFileDiff(data);
     } catch (error) {
       if (signal?.aborted) return; // Ignore errors from aborted requests
-      console.error('Error loading file diff:', error);
     } finally {
       if (!signal?.aborted) {
         setLoadingDiff(false);
@@ -122,7 +120,6 @@ export default function ChangesPage() {
       }
     } catch (error) {
       if (signal?.aborted) return; // Ignore errors from aborted requests
-      console.error('Error loading project:', error);
       setError('Failed to load project');
     } finally {
       if (!signal?.aborted) {

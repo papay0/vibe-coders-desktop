@@ -27,8 +27,7 @@ export default function HomeLayout({
     if (isLoaded && !isSignedIn) {
       router.push('/');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, router]);
 
   if (!isLoaded || !isSignedIn) {
     return (

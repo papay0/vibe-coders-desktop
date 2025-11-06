@@ -37,7 +37,6 @@ export default function ProjectsPage() {
       setProjects(data || []);
     } catch (error) {
       if (signal?.aborted) return;
-      console.error('Error loading projects:', error);
     } finally {
       if (!signal?.aborted) {
         setLoading(false);
@@ -94,7 +93,6 @@ export default function ProjectsPage() {
 
       setProjects(projects.filter(p => p.id !== projectId));
     } catch (error) {
-      console.error('Error deleting project:', error);
       alert('Failed to delete project');
     }
   };

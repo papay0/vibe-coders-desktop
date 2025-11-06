@@ -148,7 +148,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Git file diff error:', error);
     return NextResponse.json(
       {
         oldContent: '',

@@ -46,7 +46,6 @@ export default function ProjectPage() {
       }
     } catch (error) {
       if (signal?.aborted) return;
-      console.error('Error loading project:', error);
       setError('Failed to load project');
     } finally {
       if (!signal?.aborted) {

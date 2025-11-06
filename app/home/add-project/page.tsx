@@ -58,7 +58,6 @@ export default function AddProjectPage() {
         }
       }
     } catch (err) {
-      console.error('Error selecting folder:', err);
       alert('Failed to select folder: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setLoading(false);
@@ -107,7 +106,6 @@ export default function AddProjectPage() {
       router.push('/home');
       router.refresh();
     } catch (error) {
-      console.error('Error saving project:', error);
       alert('Failed to save project: ' + (error as Error).message);
     } finally {
       setLoading(false);
@@ -216,7 +214,6 @@ export default function AddProjectPage() {
       // Navigate to the new project
       router.push(`/home/project/${projectData.id}`);
     } catch (error) {
-      console.error('Error creating project:', error);
       alert('Failed to create project: ' + (error instanceof Error ? error.message : 'Unknown error'));
       setStep('configure-web');
     } finally {

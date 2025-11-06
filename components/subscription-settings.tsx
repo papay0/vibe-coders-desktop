@@ -104,7 +104,6 @@ export function SubscriptionSettings({ settings, loading, onSave }: Subscription
                 <p className="text-xs text-muted-foreground">
                   Get your API key from{' '}
                   <a
-                    href="https://console.anthropic.com/settings/keys"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-teal-600 hover:underline"

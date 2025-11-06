@@ -71,7 +71,6 @@ export default function ActionPage() {
           }
         }
       } catch (error) {
-        console.error('Error loading project:', error);
         setError('Failed to load project');
       } finally {
         setLoading(false);
@@ -138,7 +137,6 @@ export default function ActionPage() {
         }
       }
     } catch (error) {
-      console.error('Error executing action:', error);
       setActionMessages(prev => [...prev, {
         content: 'Failed to execute action: ' + (error instanceof Error ? error.message : 'Unknown error'),
         type: 'text',

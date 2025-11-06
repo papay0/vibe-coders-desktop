@@ -69,7 +69,6 @@ export async function POST() {
     });
 
   } catch (error) {
-    console.error('Error in select-folder API:', error);
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     }, { status: 500 });
