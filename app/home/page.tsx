@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useUser, useSession } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
@@ -15,7 +15,7 @@ export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async (signal?: AbortSignal) => {
     if (!user || !session) return;
 
     setLoading(true);
@@ -29,19 +29,31 @@ export default function HomePage() {
         .order('created_at', { ascending: false })
         .limit(6);
 
+      // Check if request was aborted
+      if (signal?.aborted) return;
+
       if (error) throw error;
 
       setProjects(data || []);
     } catch (error) {
+      if (signal?.aborted) return; // Ignore errors from aborted requests
       console.error('Error loading projects:', error);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [user?.id, session]); // Only depend on user.id, not the whole user object
 
   useEffect(() => {
-    loadProjects();
-  }, [user, session]);
+    const abortController = new AbortController();
+    loadProjects(abortController.signal);
+
+    // Cleanup: abort the request if component unmounts or effect re-runs
+    return () => {
+      abortController.abort();
+    };
+  }, [loadProjects]);
 
   const handleDeleteProject = async (projectId: string) => {
     if (!session || !confirm('Are you sure you want to remove this project?')) return;
