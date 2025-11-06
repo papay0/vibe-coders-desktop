@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useSession } from '@clerk/nextjs';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
@@ -20,42 +20,50 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [advancedMode, setAdvancedMode] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  useEffect(() => {
-    // Don't reload if we've already loaded the project
-    if (!user || !session || !params.id || hasLoadedOnce) return;
+  const loadProject = useCallback(async (signal?: AbortSignal) => {
+    if (!user || !session || !params.id) return;
 
-    async function loadProject() {
-      setLoading(true);
-      try {
-        const supabase = createClerkSupabaseClient(() => session!.getToken());
+    setLoading(true);
+    try {
+      const supabase = createClerkSupabaseClient(() => session.getToken());
 
-        const { data, error } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('id', params.id)
-          .eq('clerk_user_id', user!.id)
-          .single();
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', params.id)
+        .eq('clerk_user_id', user.id)
+        .single();
 
-        if (error) throw error;
+      if (signal?.aborted) return;
 
-        if (!data) {
-          setError('Project not found');
-        } else {
-          setProject(data);
-          setHasLoadedOnce(true); // Mark as loaded to prevent reload on tab switch
-        }
-      } catch (error) {
-        console.error('Error loading project:', error);
-        setError('Failed to load project');
-      } finally {
+      if (error) throw error;
+
+      if (!data) {
+        setError('Project not found');
+      } else {
+        setProject(data);
+      }
+    } catch (error) {
+      if (signal?.aborted) return;
+      console.error('Error loading project:', error);
+      setError('Failed to load project');
+    } finally {
+      if (!signal?.aborted) {
         setLoading(false);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, params.id]);
 
-    loadProject();
-  }, [user, session, params.id, hasLoadedOnce]);
+  useEffect(() => {
+    const abortController = new AbortController();
+    loadProject(abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
+  }, [loadProject]);
 
   const getDisplayName = (proj: Project) => {
     // If the name looks like a path, extract just the folder name

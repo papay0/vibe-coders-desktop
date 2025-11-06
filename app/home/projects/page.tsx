@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useUser, useSession } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
@@ -17,7 +17,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async (signal?: AbortSignal) => {
     if (!user || !session) return;
 
     setLoading(true);
@@ -30,19 +30,30 @@ export default function ProjectsPage() {
         .eq('clerk_user_id', user.id)
         .order('created_at', { ascending: false });
 
+      if (signal?.aborted) return;
+
       if (error) throw error;
 
       setProjects(data || []);
     } catch (error) {
+      if (signal?.aborted) return;
       console.error('Error loading projects:', error);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
-    loadProjects();
-  }, [user, session]);
+    const abortController = new AbortController();
+    loadProjects(abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
+  }, [loadProjects]);
 
   const handleDeleteProject = async (projectId: string) => {
     if (!session || !confirm('Are you sure you want to remove this project?')) return;
