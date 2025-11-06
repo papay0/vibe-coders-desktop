@@ -43,7 +43,8 @@ export default function HomePage() {
         setLoading(false);
       }
     }
-  }, [user?.id, session]); // Only depend on user.id, not the whole user object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Only depend on user.id - session is captured in closure and checked at runtime
 
   useEffect(() => {
     const abortController = new AbortController();
