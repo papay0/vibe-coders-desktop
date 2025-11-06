@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useUser, useSession } from '@clerk/nextjs';
 import { createClerkSupabaseClient, UserSettings } from '@/lib/supabase';
 import { SubscriptionSettings } from '@/components/subscription-settings';
@@ -14,13 +14,11 @@ export default function SubscriptionPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  useEffect(() => {
+  const loadSettings = useCallback(async (signal?: AbortSignal) => {
     if (!user || !session) return;
 
-    async function loadSettings() {
-      if (!session || !user) return;
-
-      setLoadingSettings(true);
+    setLoadingSettings(true);
+    try {
       const supabase = createClerkSupabaseClient(() => session.getToken());
 
       const { data, error } = await supabase
@@ -28,6 +26,9 @@ export default function SubscriptionPage() {
         .select('*')
         .eq('clerk_user_id', user.id)
         .single();
+
+      // Check if request was aborted
+      if (signal?.aborted) return;
 
       if (data) {
         setSettings(data);
@@ -42,16 +43,70 @@ export default function SubscriptionPage() {
           .select()
           .single();
 
-        if (newData) {
+        if (!signal?.aborted && newData) {
           setSettings(newData);
         }
       }
-
-      setLoadingSettings(false);
+    } catch (error) {
+      if (signal?.aborted) return; // Ignore errors from aborted requests
+      console.error('Error loading settings:', error);
+    } finally {
+      if (!signal?.aborted) {
+        setLoadingSettings(false);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-    loadSettings();
-  }, [user, session]);
+  useEffect(() => {
+    const abortController = new AbortController();
+    loadSettings(abortController.signal);
+
+    // Cleanup: abort the request if component unmounts or effect re-runs
+    return () => {
+      abortController.abort();
+    };
+  }, [loadSettings]);
+
+  // Real-time subscription for user_settings changes
+  useEffect(() => {
+    if (!user?.id || !session) return;
+
+    console.log('📡 [Subscription] Setting up subscription for user settings');
+    const supabase = createClerkSupabaseClient(() => session.getToken());
+
+    const filter = `clerk_user_id=eq.${user.id}`;
+
+    const channel = supabase
+      .channel('user-settings-changes')
+      .on('postgres_changes', {
+        event: '*', // Listen to INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'user_settings',
+        filter,
+      }, (payload) => {
+        console.log('📡 [Subscription] Settings change detected:', payload);
+
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          console.log('📡 [Subscription] Updating settings from subscription');
+          setSettings(payload.new as UserSettings);
+        } else if (payload.eventType === 'DELETE') {
+          console.log('📡 [Subscription] Settings deleted');
+          setSettings(null);
+        }
+      })
+      .subscribe((status, err) => {
+        console.log('📡 [Subscription] Subscription status:', status);
+        if (err) {
+          console.error('📡 [Subscription] Subscription error:', err);
+        }
+      });
+
+    return () => {
+      console.log('📡 [Subscription] Unsubscribing from user settings');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, session]);
 
   const handleSave = async (apiMode: 'premium' | 'byok', apiKey: string) => {
     if (!user || !session) return;

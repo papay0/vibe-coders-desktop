@@ -65,6 +65,30 @@ export default function ProjectPage() {
     };
   }, [loadProject]);
 
+  // Real-time subscription for this specific project
+  useEffect(() => {
+    if (!user?.id || !session || !params.id) return;
+
+    const supabase = createClerkSupabaseClient(() => session.getToken());
+
+    const channel = supabase
+      .channel('project-detail-changes')
+      .on('postgres_changes', {
+        event: 'UPDATE', // Only listen to updates for this specific project
+        schema: 'public',
+        table: 'projects',
+        filter: `id=eq.${params.id}`
+      }, () => {
+        // Reload project when it's updated
+        loadProject();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, params.id, loadProject]);
+
   const getDisplayName = (proj: Project) => {
     // If the name looks like a path, extract just the folder name
     if (proj.project_name.includes('/') || proj.project_name.includes('\\')) {

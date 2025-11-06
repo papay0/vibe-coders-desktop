@@ -24,18 +24,8 @@ export function createClerkSupabaseClient(getToken: () => Promise<string | null>
     config.supabase.url,
     config.supabase.anonKey,
     {
-      global: {
-        fetch: async (url, options = {}) => {
-          const clerkToken = await getToken()
-
-          const headers = new Headers(options?.headers)
-          headers.set('Authorization', `Bearer ${clerkToken}`)
-
-          return fetch(url, {
-            ...options,
-            headers,
-          })
-        },
+      async accessToken() {
+        return await getToken()
       },
     }
   )

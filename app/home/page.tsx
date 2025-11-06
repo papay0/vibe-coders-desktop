@@ -56,6 +56,51 @@ export default function HomePage() {
     };
   }, [loadProjects]);
 
+  // Real-time subscription for project changes
+  useEffect(() => {
+    if (!user?.id || !session) return;
+
+    console.log('📡 [Home] Setting up subscription for user.id:', user.id);
+    const supabase = createClerkSupabaseClient(() => session.getToken());
+
+    const filter = `clerk_user_id=eq.${user.id}`;
+    console.log('📡 [Home] Using server-side filter:', filter);
+
+    const channel = supabase
+      .channel('projects-home-changes')
+      .on('postgres_changes', {
+        event: '*', // Listen to all events: INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'projects',
+        filter, // Server-side filter now works with native Supabase integration
+      }, (payload) => {
+        console.log('📡 [Home] Realtime change detected:', payload);
+
+        // Handle different event types using the payload directly
+        if (payload.eventType === 'INSERT') {
+          console.log('📡 [Home] Adding new project from subscription:', payload.new);
+          setProjects(prev => [payload.new as Project, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          console.log('📡 [Home] Updating project from subscription:', payload.new);
+          setProjects(prev => prev.map(p => p.id === payload.new.id ? payload.new as Project : p));
+        } else if (payload.eventType === 'DELETE') {
+          console.log('📡 [Home] Deleting project from subscription:', payload.old);
+          setProjects(prev => prev.filter(p => p.id !== payload.old.id));
+        }
+      })
+      .subscribe((status, err) => {
+        console.log('📡 [Home] Subscription status:', status);
+        if (err) {
+          console.error('📡 [Home] Subscription error:', err);
+        }
+      });
+
+    return () => {
+      console.log('📡 [Home] Unsubscribing from realtime');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, session]);
+
   const handleDeleteProject = async (projectId: string) => {
     if (!session || !confirm('Are you sure you want to remove this project?')) return;
 

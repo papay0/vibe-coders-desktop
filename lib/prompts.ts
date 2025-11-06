@@ -29,23 +29,22 @@ function createWebProjectPrompt(params: CreateWebProjectParams): PromptConfig {
   const { name, path: parentPath } = params;
 
   return {
-    prompt: `Create a new Next.js web application project with the following setup:
+    prompt: `Create a new Next.js web application project with a single command.
 
 Project Name: ${name}
 Location: ${parentPath}
 
-Steps:
-1. Run: npx create-next-app@latest ${name}
-   - Choose TypeScript, Tailwind CSS, App Router, ESLint when prompted
-   - Use npm as package manager
-2. Navigate into the project: cd ${name}
-3. Run: npx shadcn@latest init
-   - Use default options when prompted
-4. Run: npx shadcn@latest add -a
-   - This adds all shadcn components
-5. Create initial commit: git add . && git commit -m "Initial commit with Next.js and shadcn/ui"
+Execute this EXACT command in ONE step (do NOT break it up):
 
-Handle any interactive prompts by selecting the appropriate defaults. Work through the steps systematically.`,
+npx create-next-app@latest ${name} --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --turbopack --use-npm --yes && cd ${name} && npx shadcn@latest init -y -d && npx shadcn@latest add -a -y && git add --all && git commit -m "Initial commit"
+
+IMPORTANT:
+- Run this as a SINGLE bash command
+- Do NOT break it into multiple steps
+- All flags (--yes, -y) ensure zero prompts
+- This should complete in ONE turn, not multiple turns
+
+Report when the project is successfully created.`,
     cwd: parentPath,
   };
 }

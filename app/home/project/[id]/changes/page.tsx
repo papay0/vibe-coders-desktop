@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useSession } from '@clerk/nextjs';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
@@ -45,45 +45,8 @@ export default function ChangesPage() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState<GitFileDiffResponse | null>(null);
   const [loadingDiff, setLoadingDiff] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  useEffect(() => {
-    // Don't reload if we've already loaded the project
-    if (!user || !session || !params.id || hasLoadedOnce) return;
-
-    async function loadProject() {
-      setLoading(true);
-      try {
-        const supabase = createClerkSupabaseClient(() => session!.getToken());
-
-        const { data, error } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('id', params.id)
-          .eq('clerk_user_id', user!.id)
-          .single();
-
-        if (error) throw error;
-
-        if (!data) {
-          setError('Project not found');
-        } else {
-          setProject(data);
-          await loadGitStatus(data.project_path);
-          setHasLoadedOnce(true); // Mark as loaded to prevent reload on tab switch
-        }
-      } catch (error) {
-        console.error('Error loading project:', error);
-        setError('Failed to load project');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadProject();
-  }, [user, session, params.id, hasLoadedOnce]);
-
-  const loadGitStatus = async (projectPath: string) => {
+  const loadGitStatusCallback = useCallback(async (projectPath: string, signal?: AbortSignal) => {
     try {
       const response = await fetch('/api/git-diff', {
         method: 'POST',
@@ -91,20 +54,24 @@ export default function ChangesPage() {
         body: JSON.stringify({ projectPath }),
       });
 
+      // Check if request was aborted
+      if (signal?.aborted) return;
+
       const data: GitDiffResponse = await response.json();
       setGitStatus(data);
 
       // Auto-select first file if available
-      if (data.files.length > 0) {
+      if (data.files.length > 0 && !signal?.aborted) {
         setSelectedFile(data.files[0].path);
-        await loadFileDiff(projectPath, data.files[0].path);
+        await loadFileDiffCallback(projectPath, data.files[0].path, signal);
       }
     } catch (error) {
+      if (signal?.aborted) return; // Ignore errors from aborted requests
       console.error('Error loading git status:', error);
     }
-  };
+  }, []);
 
-  const loadFileDiff = async (projectPath: string, filePath: string) => {
+  const loadFileDiffCallback = useCallback(async (projectPath: string, filePath: string, signal?: AbortSignal) => {
     setLoadingDiff(true);
     try {
       const response = await fetch('/api/git-file-diff', {
@@ -113,25 +80,78 @@ export default function ChangesPage() {
         body: JSON.stringify({ projectPath, filePath }),
       });
 
+      // Check if request was aborted
+      if (signal?.aborted) return;
+
       const data: GitFileDiffResponse = await response.json();
       setFileDiff(data);
     } catch (error) {
+      if (signal?.aborted) return; // Ignore errors from aborted requests
       console.error('Error loading file diff:', error);
     } finally {
-      setLoadingDiff(false);
+      if (!signal?.aborted) {
+        setLoadingDiff(false);
+      }
     }
-  };
+  }, []);
+
+  const loadProject = useCallback(async (signal?: AbortSignal) => {
+    if (!user || !session || !params.id) return;
+
+    setLoading(true);
+    try {
+      const supabase = createClerkSupabaseClient(() => session.getToken());
+
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', params.id)
+        .eq('clerk_user_id', user.id)
+        .single();
+
+      // Check if request was aborted
+      if (signal?.aborted) return;
+
+      if (error) throw error;
+
+      if (!data) {
+        setError('Project not found');
+      } else {
+        setProject(data);
+        await loadGitStatusCallback(data.project_path, signal);
+      }
+    } catch (error) {
+      if (signal?.aborted) return; // Ignore errors from aborted requests
+      console.error('Error loading project:', error);
+      setError('Failed to load project');
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, params.id, loadGitStatusCallback]);
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    loadProject(abortController.signal);
+
+    // Cleanup: abort the request if component unmounts or effect re-runs
+    return () => {
+      abortController.abort();
+    };
+  }, [loadProject]);
 
   const handleFileSelect = (filePath: string) => {
     setSelectedFile(filePath);
     if (project) {
-      loadFileDiff(project.project_path, filePath);
+      loadFileDiffCallback(project.project_path, filePath);
     }
   };
 
   const handleRefresh = () => {
     if (project) {
-      loadGitStatus(project.project_path);
+      loadGitStatusCallback(project.project_path);
     }
   };
 

@@ -55,6 +55,30 @@ export default function ProjectsPage() {
     };
   }, [loadProjects]);
 
+  // Real-time subscription for project changes
+  useEffect(() => {
+    if (!user?.id || !session) return;
+
+    const supabase = createClerkSupabaseClient(() => session.getToken());
+
+    const channel = supabase
+      .channel('projects-list-changes')
+      .on('postgres_changes', {
+        event: '*', // Listen to all events: INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'projects',
+        filter: `clerk_user_id=eq.${user.id}`
+      }, () => {
+        // Reload projects when any change is detected
+        loadProjects();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadProjects]);
+
   const handleDeleteProject = async (projectId: string) => {
     if (!session || !confirm('Are you sure you want to remove this project?')) return;
 
