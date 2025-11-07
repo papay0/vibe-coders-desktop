@@ -415,10 +415,10 @@ export default function TerminalPage() {
           </Button>
         </div>
 
-        <div className="flex-1 relative bg-[#1e1e1e] overflow-hidden">
+        <div className="flex-1 relative bg-[#1e1e1e] overflow-hidden rounded-lg m-4">
           <div
             ref={terminalRef}
-            className="w-full h-full bg-[#1e1e1e]"
+            className="w-full h-full bg-[#1e1e1e] rounded-lg"
           />
           {connecting && (
             <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e]/80">
