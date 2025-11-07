@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Loader2, Play, Square, Globe, X, GitCompare, Zap } from 'lucide-react';
+import { Loader2, Play, Square, Globe, X, GitCompare, Zap, Terminal } from 'lucide-react';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -208,7 +208,7 @@ export default function ProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
               <Button
                 onClick={() => router.push(`/home/project/${project.id}/action?type=start-dev-server`)}
                 className="gap-2 h-auto py-4 flex-col items-start"
@@ -270,6 +270,25 @@ export default function ProjectPage() {
                   {advancedMode
                     ? 'View git diff and see what the AI changed in your project'
                     : 'See what was changed in your code'
+                  }
+                </span>
+              </Button>
+
+              <Button
+                onClick={() => router.push(`/home/project/${project.id}/terminal`)}
+                className="gap-2 h-auto py-4 flex-col items-start"
+                variant="outline"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <Terminal className="h-5 w-5 text-purple-600" />
+                  <span className="font-semibold">
+                    {advancedMode ? 'Claude Terminal' : 'Open Terminal'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground text-left">
+                  {advancedMode
+                    ? 'Open Claude Code CLI in an integrated terminal'
+                    : 'Open Claude Code in terminal'
                   }
                 </span>
               </Button>

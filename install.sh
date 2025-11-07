@@ -204,6 +204,24 @@ install_dependencies() {
         exit 1
     fi
 
+    # Check tmux (optional but recommended for terminal persistence)
+    if command_exists tmux; then
+        local tmux_version=$(tmux -V | cut -d' ' -f2)
+        echo -e "${GREEN}${CHECK_MARK}${RESET} tmux ${tmux_version} is installed (terminal sessions will persist)"
+    else
+        echo -e "${YELLOW}${ARROW}${RESET} tmux is not installed. Installing for terminal persistence..."
+        if [ "$os" = "macos" ]; then
+            execute_with_spinner "Installing tmux" "brew install tmux"
+        elif [ "$os" = "debian" ]; then
+            execute_with_spinner "Installing tmux" "sudo apt-get install -y tmux"
+        elif [ "$os" = "rhel" ] || [ "$os" = "fedora" ]; then
+            execute_with_spinner "Installing tmux" "sudo yum install -y tmux"
+        else
+            echo -e "${YELLOW}${ARROW}${RESET} Could not install tmux automatically. Terminal sessions will not persist."
+            echo -e "  Install manually: ${CYAN}brew install tmux${RESET} (macOS) or ${CYAN}apt install tmux${RESET} (Linux)"
+        fi
+    fi
+
     echo ""
 }
 
