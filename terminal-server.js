@@ -108,29 +108,47 @@ wss.on('connection', (ws, req) => {
       isExistingSession = true;
       // Session exists and has content, attach to it
       ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
-        name: 'xterm-color',
+        name: 'xterm-256color',
         cols: 80,
         rows: 30,
         cwd: projectPath,
         env: process.env,
       });
+
+      // Ensure mouse mode is enabled on existing session too
+      setTimeout(() => {
+        try {
+          execSync(`tmux set-option -t ${sessionName} -g mouse on 2>/dev/null`, { stdio: 'ignore' });
+          console.log(`✓ Enabled mouse mode for existing session: ${sessionName}`);
+        } catch (e) {
+          console.log(`⚠️  Could not enable mouse mode for ${sessionName}`);
+        }
+      }, 500);
     } catch (err) {
       console.log(`Creating new tmux session: ${sessionName} in ${projectPath}`);
       isExistingSession = false;
       // Session doesn't exist or needs recreation, create it
-      // If autoCommand is provided, start tmux with that command directly
-      // Otherwise just start a shell
       const tmuxArgs = autoCommand
         ? ['new-session', '-s', sessionName, '-c', projectPath, autoCommand]
         : ['new-session', '-s', sessionName, '-c', projectPath];
 
       ptyProcess = pty.spawn('tmux', tmuxArgs, {
-        name: 'xterm-color',
+        name: 'xterm-256color',
         cols: 80,
         rows: 30,
         cwd: projectPath,
         env: process.env,
       });
+
+      // Enable mouse mode after session creation (works for both cases)
+      setTimeout(() => {
+        try {
+          execSync(`tmux set-option -t ${sessionName} -g mouse on 2>/dev/null`, { stdio: 'ignore' });
+          console.log(`✓ Enabled mouse mode for tmux session: ${sessionName}`);
+        } catch (e) {
+          console.log(`⚠️  Could not enable mouse mode for ${sessionName}`);
+        }
+      }, 1000);
     }
   } else {
     // Fallback to regular shell without persistence

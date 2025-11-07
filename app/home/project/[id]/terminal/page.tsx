@@ -182,22 +182,98 @@ export default function TerminalPage() {
       }
     });
 
-    // Handle scroll by sending PageUp/PageDown so Claude Code navigates its own buffer
-    const terminalElement = terminal.element;
-    const handleWheel = (event: WheelEvent) => {
+    // SGR mouse protocol for tmux scrolling (based on working implementation)
+    let startY = 0;
+    let isScrolling = false;
+    let lastScrollTime = 0;
+
+    const handleWheel = (e: WheelEvent) => {
       if (ws.readyState !== WebSocket.OPEN) return;
 
-      event.preventDefault();
-      event.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
 
-      if (event.deltaY < 0) {
-        ws.send('\u001b[5~'); // PageUp
-      } else if (event.deltaY > 0) {
-        ws.send('\u001b[6~'); // PageDown
+      const currentTime = Date.now();
+
+      // Throttle scroll events
+      if (currentTime - lastScrollTime > 50) {
+        // Use center of terminal for mouse position
+        const charX = Math.floor(terminal.cols / 2);
+        const charY = Math.floor(terminal.rows / 2);
+
+        if (e.deltaY < 0) {
+          // Scroll up (show earlier content)
+          // SGR format: \x1b[<64;x;yM (wheel up)
+          const sgrWheelUp = `\x1b[<64;${charX};${charY}M`;
+          ws.send(sgrWheelUp);
+        } else if (e.deltaY > 0) {
+          // Scroll down (show later content)
+          // SGR format: \x1b[<65;x;yM (wheel down)
+          const sgrWheelDown = `\x1b[<65;${charX};${charY}M`;
+          ws.send(sgrWheelDown);
+        }
+
+        lastScrollTime = currentTime;
       }
     };
 
-    terminalElement?.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+    // Handle touch scrolling for mobile
+    const handleTouchStart = (e: TouchEvent) => {
+      startY = e.touches[0].clientY;
+      isScrolling = false;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+
+      const currentY = e.touches[0].clientY;
+      const deltaY = startY - currentY;
+      const currentTime = Date.now();
+
+      // Only handle vertical scrolling with minimum threshold
+      if (Math.abs(deltaY) > 20) {
+        isScrolling = true;
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Throttle scroll events
+        if (currentTime - lastScrollTime > 100) {
+          const charX = Math.floor(terminal.cols / 2);
+          const charY = Math.floor(terminal.rows / 2);
+
+          // Calculate scroll steps based on gesture size
+          const scrollSteps = Math.min(Math.ceil(Math.abs(deltaY) / 40), 5);
+
+          for (let i = 0; i < scrollSteps; i++) {
+            if (deltaY < 0) {
+              // Swipe down = scroll up (show earlier content)
+              ws.send(`\x1b[<64;${charX};${charY}M`);
+            } else {
+              // Swipe up = scroll down (show later content)
+              ws.send(`\x1b[<65;${charX};${charY}M`);
+            }
+          }
+
+          lastScrollTime = currentTime;
+          startY = currentY;
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (isScrolling) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      isScrolling = false;
+    };
+
+    if (terminalRef.current) {
+      terminalRef.current.addEventListener('wheel', handleWheel, { passive: false });
+      terminalRef.current.addEventListener('touchstart', handleTouchStart, { passive: false });
+      terminalRef.current.addEventListener('touchmove', handleTouchMove, { passive: false });
+      terminalRef.current.addEventListener('touchend', handleTouchEnd, { passive: false });
+    }
 
     // Handle resize
     const handleResize = () => {
@@ -240,7 +316,12 @@ export default function TerminalPage() {
     return () => {
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
-      terminalElement?.removeEventListener('wheel', handleWheel, true);
+      if (terminalRef.current) {
+        terminalRef.current.removeEventListener('wheel', handleWheel);
+        terminalRef.current.removeEventListener('touchstart', handleTouchStart);
+        terminalRef.current.removeEventListener('touchmove', handleTouchMove);
+        terminalRef.current.removeEventListener('touchend', handleTouchEnd);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, project?.project_path, serverPort]); // Only depend on stable IDs
