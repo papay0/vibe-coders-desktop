@@ -69,7 +69,7 @@ CRITICAL RULES:
                 const messageContent = messageSection[1];
 
                 const titleMatch = messageContent.match(/TITLE:\s*(.+?)(?:\n|$)/i);
-                const descMatch = messageContent.match(/DESCRIPTION:\s*(.+?)(?:\n|$)/is);
+                const descMatch = messageContent.match(/DESCRIPTION:\s*([\s\S]+?)(?:\n|$)/i);
 
                 if (titleMatch) {
                   title = titleMatch[1].trim();
