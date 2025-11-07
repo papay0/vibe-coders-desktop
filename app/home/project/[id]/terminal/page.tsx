@@ -395,10 +395,10 @@ export default function TerminalPage() {
   // Show terminal
   return (
     <>
-      <SetBreadcrumbName name="Terminal" />
+      <SetBreadcrumbName name={getDisplayName(project)} />
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col h-[calc(100vh-64px)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-[#3e3e42]">
           <div>
             <h1 className="text-2xl font-bold">Claude Code Terminal</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -415,20 +415,20 @@ export default function TerminalPage() {
           </Button>
         </div>
 
-        <Card className="p-3 overflow-hidden border-0 relative">
+        <div className="flex-1 relative bg-[#1e1e1e] overflow-hidden">
           <div
             ref={terminalRef}
-            className="w-full h-[calc(100vh-240px)] bg-[#1e1e1e] rounded"
+            className="w-full h-full bg-[#1e1e1e]"
           />
           {connecting && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e]/80 rounded">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e]/80">
               <div className="flex flex-col items-center gap-4">
                 <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
                 <p className="text-sm text-muted-foreground">Connecting to terminal...</p>
               </div>
             </div>
           )}
-        </Card>
+        </div>
       </div>
     </>
   );
