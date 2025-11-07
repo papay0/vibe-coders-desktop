@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Loader2, Play, Square, Globe, X, GitCompare, Zap, Terminal } from 'lucide-react';
+import { Loader2, Play, Square, Globe, X, GitCompare, Zap, Terminal, Save } from 'lucide-react';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -208,7 +208,7 @@ export default function ProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
               <Button
                 onClick={() => router.push(`/home/project/${project.id}/action?type=start-dev-server`)}
                 className="gap-2 h-auto py-4 flex-col items-start"
@@ -289,6 +289,25 @@ export default function ProjectPage() {
                   {advancedMode
                     ? 'Open Claude Code CLI in an integrated terminal'
                     : 'Open Claude Code in terminal'
+                  }
+                </span>
+              </Button>
+
+              <Button
+                onClick={() => router.push(`/home/project/${project.id}/save`)}
+                className="gap-2 h-auto py-4 flex-col items-start"
+                variant="outline"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <Save className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">
+                    {advancedMode ? 'Save & Publish' : 'Save Changes'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground text-left">
+                  {advancedMode
+                    ? 'Generate commit message and push changes to git'
+                    : 'Save and publish your changes'
                   }
                 </span>
               </Button>

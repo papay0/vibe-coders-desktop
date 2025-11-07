@@ -408,10 +408,9 @@ export default function TerminalPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(`/home/project/${project.id}`)}
+            onClick={() => router.push(`/home/project/${project.id}/save`)}
           >
-            <X className="h-4 w-4 mr-2" />
-            Close Terminal
+            Save & Publish
           </Button>
         </div>
 
