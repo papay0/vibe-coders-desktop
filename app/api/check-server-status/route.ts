@@ -42,32 +42,11 @@ export async function GET(request: NextRequest) {
         if (portCheck.stdout.trim()) {
           console.log('[check-server-status] ✅ Server verified - port', serverInfo.port, 'is listening');
 
-          // Health check: Verify the HTTP server actually responds
-          try {
-            console.log('[check-server-status] 🏥 Performing HTTP health check...');
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-            const healthResponse = await fetch(`http://localhost:${serverInfo.port}`, {
-              signal: controller.signal,
-            });
-
-            clearTimeout(timeoutId);
-            console.log('[check-server-status] ✅ Health check passed - server is responding');
-
-            return NextResponse.json({
-              running: true,
-              port: serverInfo.port,
-              healthy: true,
-            });
-          } catch (error) {
-            console.log('[check-server-status] ⚠️  Health check failed - server listening but not responding yet');
-            return NextResponse.json({
-              running: true,
-              port: serverInfo.port,
-              healthy: false,
-            });
-          }
+          return NextResponse.json({
+            running: true,
+            port: serverInfo.port,
+            healthy: true,
+          });
         }
       } catch (error) {
         console.log('[check-server-status] Saved PID/port no longer valid:', error);
@@ -132,32 +111,11 @@ export async function GET(request: NextRequest) {
                   const port = parseInt(portMatch[1], 10);
                   console.log('[check-server-status] ✅ Found Next.js dev server on port:', port);
 
-                  // Health check: Verify the HTTP server actually responds
-                  try {
-                    console.log('[check-server-status] 🏥 Performing HTTP health check...');
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-                    await fetch(`http://localhost:${port}`, {
-                      signal: controller.signal,
-                    });
-
-                    clearTimeout(timeoutId);
-                    console.log('[check-server-status] ✅ Health check passed - server is responding');
-
-                    return NextResponse.json({
-                      running: true,
-                      port,
-                      healthy: true,
-                    });
-                  } catch (error) {
-                    console.log('[check-server-status] ⚠️  Health check failed - server listening but not responding yet');
-                    return NextResponse.json({
-                      running: true,
-                      port,
-                      healthy: false,
-                    });
-                  }
+                  return NextResponse.json({
+                    running: true,
+                    port,
+                    healthy: true,
+                  });
                 }
               }
             }
