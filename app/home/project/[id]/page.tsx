@@ -15,8 +15,32 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable';
-import { Loader2, Eye, Save, Play, Square, RefreshCw, ExternalLink, RotateCw } from 'lucide-react';
+import { Loader2, Eye, Save, Play, Square, RefreshCw, ExternalLink, RotateCw, Code2 } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
+import { DiffViewer } from '@/components/diff-viewer';
+
+interface GitFileStatus {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked';
+  additions?: number;
+  deletions?: number;
+}
+
+interface GitDiffResponse {
+  files: GitFileStatus[];
+  totalFiles: number;
+  hasChanges: boolean;
+  error?: string;
+}
+
+interface GitFileDiffResponse {
+  oldContent: string;
+  newContent: string;
+  unifiedDiff: string;
+  fileName: string;
+  language: string;
+  error?: string;
+}
 
 export default function Project2Page() {
   const params = useParams();
@@ -36,6 +60,14 @@ export default function Project2Page() {
   const [startingServer, setStartingServer] = useState(false);
   const [restartingServer, setRestartingServer] = useState(false);
   const [devServerPort, setDevServerPort] = useState<number | null>(null);
+
+  // Diff view state
+  const [viewMode, setViewMode] = useState<'preview' | 'changes'>('preview');
+  const [gitStatus, setGitStatus] = useState<GitDiffResponse | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<GitFileDiffResponse | null>(null);
+  const [loadingDiff, setLoadingDiff] = useState(false);
+  const [loadingGitStatus, setLoadingGitStatus] = useState(false);
 
   // Debug: Log preview URL changes
   useEffect(() => {
@@ -609,9 +641,68 @@ export default function Project2Page() {
     }
   };
 
-  const handleViewChanges = () => {
+  const loadGitStatus = async () => {
     if (!project) return;
-    router.push(`/home/project/${project.id}/changes`);
+
+    setLoadingGitStatus(true);
+    try {
+      const response = await fetch('/api/git-diff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectPath: project.project_path }),
+      });
+
+      const data: GitDiffResponse = await response.json();
+      setGitStatus(data);
+
+      // Auto-select first file if available
+      if (data.files.length > 0) {
+        setSelectedFile(data.files[0].path);
+        await loadFileDiff(project.project_path, data.files[0].path);
+      }
+    } catch (error) {
+      console.error('Error loading git status:', error);
+    } finally {
+      setLoadingGitStatus(false);
+    }
+  };
+
+  const loadFileDiff = async (projectPath: string, filePath: string) => {
+    setLoadingDiff(true);
+    try {
+      const response = await fetch('/api/git-file-diff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectPath, filePath }),
+      });
+
+      const data: GitFileDiffResponse = await response.json();
+      setFileDiff(data);
+    } catch (error) {
+      console.error('Error loading file diff:', error);
+    } finally {
+      setLoadingDiff(false);
+    }
+  };
+
+  const handleViewChanges = async () => {
+    if (!project) return;
+
+    if (viewMode === 'preview') {
+      // Switch to changes view and load git status
+      setViewMode('changes');
+      await loadGitStatus();
+    } else {
+      // Switch back to preview
+      setViewMode('preview');
+    }
+  };
+
+  const handleFileSelect = (filePath: string) => {
+    setSelectedFile(filePath);
+    if (project) {
+      loadFileDiff(project.project_path, filePath);
+    }
   };
 
   const handleSave = () => {
@@ -812,17 +903,47 @@ export default function Project2Page() {
                   {/* Preview Header */}
                   <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                        Preview
-                      </span>
-                      {previewUrl && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => setViewMode('preview')}
+                          size="sm"
+                          variant={viewMode === 'preview' ? 'default' : 'ghost'}
+                          className={`h-7 gap-1.5 rounded-lg text-xs ${
+                            viewMode === 'preview'
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <Eye className="h-3 w-3" />
+                          Preview
+                        </Button>
+                        <Button
+                          onClick={handleViewChanges}
+                          size="sm"
+                          variant={viewMode === 'changes' ? 'default' : 'ghost'}
+                          className={`h-7 gap-1.5 rounded-lg text-xs ${
+                            viewMode === 'changes'
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <Code2 className="h-3 w-3" />
+                          Changes
+                        </Button>
+                      </div>
+                      {viewMode === 'preview' && previewUrl && (
                         <span className="text-xs font-mono text-gray-500 dark:text-gray-500 truncate max-w-xs">
                           {previewUrl}
                         </span>
                       )}
+                      {viewMode === 'changes' && gitStatus && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {gitStatus.totalFiles} file{gitStatus.totalFiles !== 1 ? 's' : ''} changed
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {previewUrl && (
+                      {viewMode === 'preview' && previewUrl && (
                         <>
                           <Button
                             onClick={handleOpenInNewTab}
@@ -845,15 +966,18 @@ export default function Project2Page() {
                           </Button>
                         </>
                       )}
-                      <Button
-                        onClick={handleViewChanges}
-                        size="sm"
-                        variant="outline"
-                        className="h-7 gap-1.5 rounded-lg text-xs border-blue-200 dark:border-blue-800"
-                      >
-                        <Eye className="h-3 w-3 text-blue-600" />
-                        See Changes
-                      </Button>
+                      {viewMode === 'changes' && (
+                        <Button
+                          onClick={loadGitStatus}
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1.5 rounded-lg text-xs"
+                          disabled={loadingGitStatus}
+                        >
+                          <RefreshCw className={`h-3 w-3 ${loadingGitStatus ? 'animate-spin' : ''}`} />
+                          Refresh
+                        </Button>
+                      )}
                       <Button
                         onClick={handleSave}
                         size="sm"
@@ -865,64 +989,82 @@ export default function Project2Page() {
                     </div>
                   </div>
 
-                  {/* Preview Body */}
+                  {/* Preview/Changes Body */}
                   <div className="flex-1 relative overflow-hidden bg-white dark:bg-gray-950">
-                    {previewUrl ? (
-                      <>
-                        <iframe
-                          src={previewUrl}
-                          className="w-full h-full border-0"
-                          title="Preview"
+                    {viewMode === 'changes' ? (
+                      // Show diff viewer
+                      loadingGitStatus ? (
+                        <div className="flex h-full items-center justify-center">
+                          <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                        </div>
+                      ) : (
+                        <DiffViewer
+                          gitStatus={gitStatus}
+                          selectedFile={selectedFile}
+                          fileDiff={fileDiff}
+                          loadingDiff={loadingDiff}
+                          onFileSelect={handleFileSelect}
                         />
-                        {restartingServer && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-gray-950/90 backdrop-blur-sm">
-                            <div className="flex flex-col items-center gap-4">
-                              <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-                              <p className="text-sm font-medium text-muted-foreground">Restarting server...</p>
-                            </div>
-                          </div>
-                        )}
-                      </>
+                      )
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-                        {checkingServer || startingServer ? (
-                          <>
-                            <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                {checkingServer ? 'Checking server...' : 'Starting server...'}
-                              </h3>
-                              <p className="text-sm text-muted-foreground max-w-md">
-                                {checkingServer
-                                  ? 'Looking for running development server...'
-                                  : 'Starting your development server. This may take a moment...'}
-                              </p>
+                      // Show preview iframe
+                      previewUrl ? (
+                        <>
+                          <iframe
+                            src={previewUrl}
+                            className="w-full h-full border-0"
+                            title="Preview"
+                          />
+                          {restartingServer && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-gray-950/90 backdrop-blur-sm">
+                              <div className="flex flex-col items-center gap-4">
+                                <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                                <p className="text-sm font-medium text-muted-foreground">Restarting server...</p>
+                              </div>
                             </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 flex items-center justify-center">
-                              <Play className="h-8 w-8 text-purple-600" />
-                            </div>
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                Server Error
-                              </h3>
-                              <p className="text-sm text-muted-foreground max-w-md">
-                                {error || 'Failed to start development server. Click Restart to try again.'}
-                              </p>
-                            </div>
-                            <Button
-                              onClick={handleRestartServer}
-                              className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white shadow-lg"
-                              disabled={restartingServer}
-                            >
-                              <RotateCw className={`h-4 w-4 ${restartingServer ? 'animate-spin' : ''}`} />
-                              <span className="font-semibold">Restart Server</span>
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+                          {checkingServer || startingServer ? (
+                            <>
+                              <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                  {checkingServer ? 'Checking server...' : 'Starting server...'}
+                                </h3>
+                                <p className="text-sm text-muted-foreground max-w-md">
+                                  {checkingServer
+                                    ? 'Looking for running development server...'
+                                    : 'Starting your development server. This may take a moment...'}
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 flex items-center justify-center">
+                                <Play className="h-8 w-8 text-purple-600" />
+                              </div>
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                  Server Error
+                                </h3>
+                                <p className="text-sm text-muted-foreground max-w-md">
+                                  {error || 'Failed to start development server. Click Restart to try again.'}
+                                </p>
+                              </div>
+                              <Button
+                                onClick={handleRestartServer}
+                                className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white shadow-lg"
+                                disabled={restartingServer}
+                              >
+                                <RotateCw className={`h-4 w-4 ${restartingServer ? 'animate-spin' : ''}`} />
+                                <span className="font-semibold">Restart Server</span>
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )
                     )}
                   </div>
                 </div>
