@@ -115,13 +115,14 @@ wss.on('connection', (ws, req) => {
         env: process.env,
       });
 
-      // Ensure mouse mode is enabled on existing session too
+      // Disable mouse mode to allow xterm.js to handle text selection
+      // We handle scrolling via wheel events in the frontend
       setTimeout(() => {
         try {
-          execSync(`tmux set-option -t ${sessionName} -g mouse on 2>/dev/null`, { stdio: 'ignore' });
-          console.log(`✓ Enabled mouse mode for existing session: ${sessionName}`);
+          execSync(`tmux set-option -t ${sessionName} -g mouse off 2>/dev/null`, { stdio: 'ignore' });
+          console.log(`✓ Disabled mouse mode for existing session: ${sessionName}`);
         } catch (e) {
-          console.log(`⚠️  Could not enable mouse mode for ${sessionName}`);
+          console.log(`⚠️  Could not disable mouse mode for ${sessionName}`);
         }
       }, 500);
     } catch (err) {
@@ -140,13 +141,14 @@ wss.on('connection', (ws, req) => {
         env: process.env,
       });
 
-      // Enable mouse mode after session creation (works for both cases)
+      // Disable mouse mode to allow xterm.js to handle text selection
+      // We handle scrolling via wheel events in the frontend
       setTimeout(() => {
         try {
-          execSync(`tmux set-option -t ${sessionName} -g mouse on 2>/dev/null`, { stdio: 'ignore' });
-          console.log(`✓ Enabled mouse mode for tmux session: ${sessionName}`);
+          execSync(`tmux set-option -t ${sessionName} -g mouse off 2>/dev/null`, { stdio: 'ignore' });
+          console.log(`✓ Disabled mouse mode for tmux session: ${sessionName}`);
         } catch (e) {
-          console.log(`⚠️  Could not enable mouse mode for ${sessionName}`);
+          console.log(`⚠️  Could not disable mouse mode for ${sessionName}`);
         }
       }, 1000);
     }

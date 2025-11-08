@@ -347,32 +347,71 @@ export default function Project2Page() {
     let isScrolling = false;
     let lastScrollTime = 0;
 
-    const handleWheel = (e: WheelEvent) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
+    // Disable tmux mouse mode entirely on connection
+    // We'll handle scrolling via wheel events, and selection via xterm.js
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l');
+    }
 
-      // Don't interfere if user is selecting text
-      const selection = terminal.getSelection();
-      if (selection && selection.length > 0) {
-        return;
+    // Use xterm's attachCustomWheelEventHandler to intercept wheel events for scrolling
+    // With tmux mouse mode off, we use tmux copy mode for scrolling
+    let inCopyMode = false;
+
+    (terminal as any).attachCustomWheelEventHandler?.((e: WheelEvent) => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        return true;
       }
 
-      // Only prevent default for actual scrolling
+      // Prevent page scroll
       e.preventDefault();
       e.stopPropagation();
 
       const currentTime = Date.now();
-      if (currentTime - lastScrollTime > 50) {
-        const charX = Math.floor(terminal.cols / 2);
-        const charY = Math.floor(terminal.rows / 2);
-
-        if (e.deltaY < 0) {
-          ws.send(`\x1b[<64;${charX};${charY}M`);
-        } else if (e.deltaY > 0) {
-          ws.send(`\x1b[<65;${charX};${charY}M`);
-        }
-        lastScrollTime = currentTime;
+      if (currentTime - lastScrollTime < 50) {
+        return false; // Throttle
       }
-    };
+
+      // Calculate scroll amount - about 1/3 of terminal height
+      const linesToScroll = Math.max(5, Math.floor(terminal.rows / 3));
+
+      // Enter copy mode if not already in it
+      if (!inCopyMode) {
+        ws.send('\x02['); // Ctrl+B then [
+        inCopyMode = true;
+
+        // Small delay before sending scroll commands
+        setTimeout(() => {
+          for (let i = 0; i < linesToScroll; i++) {
+            if (e.deltaY < 0) {
+              ws.send('\x1b[A'); // Up arrow
+            } else {
+              ws.send('\x1b[B'); // Down arrow
+            }
+          }
+        }, 10);
+      } else {
+        // Already in copy mode, just send scroll commands
+        for (let i = 0; i < linesToScroll; i++) {
+          if (e.deltaY < 0) {
+            ws.send('\x1b[A'); // Up arrow
+          } else {
+            ws.send('\x1b[B'); // Down arrow
+          }
+        }
+      }
+
+      lastScrollTime = currentTime;
+
+      // Auto-exit copy mode after 2 seconds of no scrolling
+      setTimeout(() => {
+        if (inCopyMode && Date.now() - lastScrollTime > 1800) {
+          ws.send('q'); // Exit copy mode
+          inCopyMode = false;
+        }
+      }, 2000);
+
+      return false;
+    });
 
     const handleTouchStart = (e: TouchEvent) => {
       startY = e.touches[0].clientY;
@@ -418,11 +457,12 @@ export default function Project2Page() {
       isScrolling = false;
     };
 
-    if (terminalRef.current) {
-      terminalRef.current.addEventListener('wheel', handleWheel, { passive: false });
-      terminalRef.current.addEventListener('touchstart', handleTouchStart, { passive: false });
-      terminalRef.current.addEventListener('touchmove', handleTouchMove, { passive: false });
-      terminalRef.current.addEventListener('touchend', handleTouchEnd, { passive: false });
+    // Attach touch event handlers for mobile scrolling
+    const terminalElement = terminalRef.current?.querySelector('.xterm') as HTMLElement;
+    if (terminalElement) {
+      terminalElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+      terminalElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+      terminalElement.addEventListener('touchend', handleTouchEnd, { passive: false });
     }
 
     const handleResize = () => {
@@ -463,11 +503,11 @@ export default function Project2Page() {
     return () => {
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
-      if (terminalRef.current) {
-        terminalRef.current.removeEventListener('wheel', handleWheel);
-        terminalRef.current.removeEventListener('touchstart', handleTouchStart);
-        terminalRef.current.removeEventListener('touchmove', handleTouchMove);
-        terminalRef.current.removeEventListener('touchend', handleTouchEnd);
+
+      if (terminalElement) {
+        terminalElement.removeEventListener('touchstart', handleTouchStart);
+        terminalElement.removeEventListener('touchmove', handleTouchMove);
+        terminalElement.removeEventListener('touchend', handleTouchEnd);
       }
     };
   }, [project?.id, project?.project_path, serverPort, isDark, previewUrl]);
