@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+.vibe-coders-server.json
 
 # debug
 npm-debug.log*
