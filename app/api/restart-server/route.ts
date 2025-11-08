@@ -103,14 +103,57 @@ export async function POST(request: NextRequest) {
       console.log('[restart-server] No lock file to remove (or already gone)');
     }
 
-    // Step 2: Find an available port and start the server again
-    const availablePort = await findAvailablePort();
-    console.log('[restart-server] Will use port:', availablePort);
+    // Step 2: Try to reuse the previous port or find a new one
+    let targetPort = 3000; // Default port
 
+    // Check if we have a saved port preference
+    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
+    try {
+      const { readFile: readFileAsync } = require('fs/promises');
+      const savedInfo = JSON.parse(await readFileAsync(serverInfoPath, 'utf-8'));
+      if (savedInfo.port) {
+        targetPort = savedInfo.port;
+        console.log('[restart-server] Reusing previous port:', targetPort);
+      }
+    } catch (error) {
+      console.log('[restart-server] No saved port, will use default:', targetPort);
+    }
+
+    // Make absolutely sure the target port is free by killing anything on it
+    try {
+      console.log('[restart-server] Ensuring port', targetPort, 'is free...');
+      const { stdout } = await execAsync(`lsof -iTCP:${targetPort} -sTCP:LISTEN -t`);
+      const pids = stdout.trim().split('\n').filter(Boolean);
+      for (const pid of pids) {
+        console.log('[restart-server] Killing process on port', targetPort, ':', pid);
+        try {
+          await execAsync(`kill -9 ${pid}`);
+        } catch (e) {
+          console.log('[restart-server] Process already dead:', pid);
+        }
+      }
+      // Wait a bit for port to be released
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.log('[restart-server] Port', targetPort, 'is already free');
+    }
+
+    // Verify port is actually available, if not find a new one
+    let availablePort = targetPort;
+    try {
+      await execAsync(`lsof -iTCP:${targetPort} -sTCP:LISTEN -t`);
+      // Port still in use, find a new one
+      console.log('[restart-server] Port still in use, finding new port...');
+      availablePort = await findAvailablePort();
+    } catch (error) {
+      // Port is free, use it
+      console.log('[restart-server] Port', targetPort, 'is free, using it');
+    }
+
+    console.log('[restart-server] Starting server on port:', availablePort);
     const { port: newPort, pid: newPid } = await startDevServer(projectPath, availablePort);
 
     // Save the server info
-    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
     await writeFile(
       serverInfoPath,
       JSON.stringify({ port: newPort, pid: newPid, startedAt: new Date().toISOString() }, null, 2)

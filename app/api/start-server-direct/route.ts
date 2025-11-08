@@ -41,15 +41,39 @@ export async function POST(request: NextRequest) {
 
     console.log('[start-server-direct] Starting dev server for:', projectPath);
 
-    // Find an available port first
-    const availablePort = await findAvailablePort();
+    // Try to reuse the previous port or default to 3000
+    let targetPort = 3000;
+    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
+
+    try {
+      const { readFile: readFileAsync } = require('fs/promises');
+      const savedInfo = JSON.parse(await readFileAsync(serverInfoPath, 'utf-8'));
+      if (savedInfo.port) {
+        targetPort = savedInfo.port;
+        console.log('[start-server-direct] Reusing previous port:', targetPort);
+      }
+    } catch (error) {
+      console.log('[start-server-direct] No saved port, will use default:', targetPort);
+    }
+
+    // Check if target port is available
+    let availablePort = targetPort;
+    try {
+      await execAsync(`lsof -iTCP:${targetPort} -sTCP:LISTEN -t`);
+      // Port is in use, find a new one
+      console.log('[start-server-direct] Port', targetPort, 'in use, finding alternative...');
+      availablePort = await findAvailablePort();
+    } catch (error) {
+      // Port is free
+      console.log('[start-server-direct] Port', targetPort, 'is available');
+    }
+
     console.log('[start-server-direct] Will use port:', availablePort);
 
     // Start the server and wait for the port
     const { port, pid } = await startDevServer(projectPath, availablePort);
 
     // Save the server info to a file in the project directory
-    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
     await writeFile(
       serverInfoPath,
       JSON.stringify({ port, pid, startedAt: new Date().toISOString() }, null, 2)

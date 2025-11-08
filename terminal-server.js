@@ -193,16 +193,14 @@ wss.on('connection', (ws, req) => {
         try {
           const data = JSON.parse(msgStr);
           if (data.type === 'resize') {
-            console.log(`Resizing terminal: ${data.cols}x${data.rows}`);
             ptyProcess.resize(data.cols, data.rows);
 
             // If using tmux, also send resize signal to tmux
             if (useTmux) {
               try {
                 execSync(`tmux refresh-client -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
-                console.log(`✓ Sent resize signal to tmux session: ${sessionName}`);
               } catch (e) {
-                console.log(`⚠️  Could not refresh tmux client: ${e.message}`);
+                // Ignore errors
               }
             }
             return; // Don't send to terminal

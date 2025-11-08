@@ -238,15 +238,15 @@ export default function Project2Page() {
     if (terminalInstanceRef.current) {
       const { terminal, ws } = terminalInstanceRef.current;
       const newTheme = isDark ? darkTheme : lightTheme;
-      console.log('[Terminal Theme] Switching to:', isDark ? 'dark' : 'light');
-      console.log('[Terminal Theme] Theme colors:', newTheme);
       terminal.options.theme = newTheme;
 
-      // Clear and refresh the terminal to apply theme to existing content
-      terminal.clear();
+      // Force tmux to redraw by sending a resize event (triggers refresh)
       if (ws.readyState === WebSocket.OPEN) {
-        // Send Ctrl+L to refresh the terminal display
-        ws.send('\x0c');
+        ws.send(JSON.stringify({
+          type: 'resize',
+          cols: terminal.cols,
+          rows: terminal.rows,
+        }));
       }
     }
   }, [isDark]);
@@ -260,8 +260,6 @@ export default function Project2Page() {
     setConnecting(true);
 
     const initialTheme = isDark ? darkTheme : lightTheme;
-    console.log('[Terminal Init] Initial theme:', isDark ? 'dark' : 'light');
-    console.log('[Terminal Init] Theme colors:', initialTheme);
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -299,16 +297,23 @@ export default function Project2Page() {
     ws.onmessage = (event) => {
       let data = event.data;
 
-      // Filter ANSI codes for light mode: convert white/bright-white to dark colors
-      if (!isDarkRef.current) {
-        // Replace bright white (ESC[97m or ESC[1;37m) with dark gray
-        data = data.replace(/\x1b\[97m/g, '\x1b[90m'); // bright white -> bright black
-        data = data.replace(/\x1b\[1;37m/g, '\x1b[90m'); // bold white -> bright black
-        // Replace white (ESC[37m) with dark gray
-        data = data.replace(/\x1b\[37m/g, '\x1b[30m'); // white -> black
-        // Replace default/reset to use our foreground color
-        data = data.replace(/\x1b\[0m/g, '\x1b[0;38;5;235m'); // reset with dark color
+      // Don't filter in dark mode - just pass through
+      if (isDarkRef.current) {
+        terminal.write(data);
+        return;
       }
+
+      // LIGHT MODE ONLY - Filter ANSI codes to convert white/light colors to dark
+      // Replace 256-color white/light codes
+      data = data.replace(/\x1b\[38;5;231m/g, '\x1b[38;5;16m'); // bright white (231) -> black (16)
+      data = data.replace(/\x1b\[38;5;247m/g, '\x1b[38;5;240m'); // light gray (247) -> dark gray (240)
+      data = data.replace(/\x1b\[38;5;255m/g, '\x1b[38;5;16m'); // white (255) -> black (16)
+      data = data.replace(/\x1b\[38;5;15m/g, '\x1b[38;5;16m'); // bright white (15) -> black (16)
+
+      // Replace basic 16-color white codes (fallback)
+      data = data.replace(/\x1b\[97m/g, '\x1b[90m'); // bright white -> bright black
+      data = data.replace(/\x1b\[1;37m/g, '\x1b[90m'); // bold white -> bright black
+      data = data.replace(/\x1b\[37m/g, '\x1b[30m'); // white -> black
 
       terminal.write(data);
 
@@ -434,27 +439,16 @@ export default function Project2Page() {
     window.addEventListener('resize', handleResize);
 
     let resizeTimeout: NodeJS.Timeout;
-    const resizeObserver = new ResizeObserver((entries) => {
-      console.log('🔄 [RESIZE OBSERVER] Container size changed!', entries[0].contentRect);
+    const resizeObserver = new ResizeObserver(() => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
-        console.log('🔄 [RESIZE] Fitting terminal to container...');
-        const oldCols = terminal.cols;
-        const oldRows = terminal.rows;
         fitAddon.fit();
-        const newCols = terminal.cols;
-        const newRows = terminal.rows;
-        console.log(`🔄 [RESIZE] Terminal dimensions: ${oldCols}x${oldRows} → ${newCols}x${newRows}`);
-
         if (ws.readyState === WebSocket.OPEN) {
-          console.log('🔄 [RESIZE] Sending resize message to backend...');
           ws.send(JSON.stringify({
             type: 'resize',
-            cols: newCols,
-            rows: newRows,
+            cols: terminal.cols,
+            rows: terminal.rows,
           }));
-        } else {
-          console.log('⚠️ [RESIZE] WebSocket not open, cannot send resize');
         }
       }, 50);
     });
@@ -690,22 +684,18 @@ export default function Project2Page() {
               defaultSize={33}
               minSize={20}
               maxSize={50}
-              onResize={(size) => {
-                console.log('🔄 [PANEL RESIZE] Terminal panel resized to:', size);
+              onResize={() => {
                 // Trigger terminal resize when panel size changes
                 if (terminalInstanceRef.current) {
                   setTimeout(() => {
                     const { terminal, ws, fitAddon } = terminalInstanceRef.current!;
-                    console.log('🔄 [PANEL RESIZE] Fitting terminal...');
                     const oldCols = terminal.cols;
                     const oldRows = terminal.rows;
                     fitAddon.fit();
                     const newCols = terminal.cols;
                     const newRows = terminal.rows;
-                    console.log(`🔄 [PANEL RESIZE] Dimensions: ${oldCols}x${oldRows} → ${newCols}x${newRows}`);
 
                     if (ws.readyState === WebSocket.OPEN && (oldCols !== newCols || oldRows !== newRows)) {
-                      console.log('🔄 [PANEL RESIZE] Sending resize to backend...');
                       ws.send(JSON.stringify({
                         type: 'resize',
                         cols: newCols,
