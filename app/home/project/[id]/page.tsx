@@ -336,71 +336,58 @@ export default function Project2Page() {
     }
   }, [isDark]);
 
-  // Start code-server once when project loads, stop when leaving page
+  // Check/start global code-server once when project loads
   useEffect(() => {
     if (!project) return;
 
-    const startCodeServerOnce = async () => {
-      console.log('[code-server] Project loaded, checking if code-server is running...');
+    const ensureGlobalCodeServer = async () => {
+      console.log('[global-code-server] Checking if global code-server is running...');
 
-      // Check if code-server is already running
+      // Check if global code-server is already running
       try {
-        const checkResponse = await fetch(
-          `/api/check-code-server-status?path=${encodeURIComponent(project.project_path)}`
-        );
+        const checkResponse = await fetch('/api/global-code-server');
         const checkData = await checkResponse.json();
 
         if (checkData.running && checkData.port) {
-          console.log('[code-server] ✅ Code-server already running on port:', checkData.port);
+          console.log('[global-code-server] ✅ Already running on port:', checkData.port);
           setCodeServerPort(checkData.port);
           setCodeServerRunning(true);
           return;
         }
       } catch (error) {
-        console.error('[code-server] Error checking status:', error);
+        console.error('[global-code-server] Error checking status:', error);
       }
 
       // Code-server not running, start it
-      console.log('[code-server] Starting code-server...');
+      console.log('[global-code-server] Starting global code-server...');
       setStartingCodeServer(true);
 
       try {
-        const startResponse = await fetch('/api/start-code-server', {
+        const startResponse = await fetch('/api/global-code-server', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectPath: project.project_path }),
         });
 
         const startData = await startResponse.json();
-        console.log('[code-server] Start response:', startData);
+        console.log('[global-code-server] Start response:', startData);
 
         if (startData.success && startData.port) {
-          console.log('[code-server] ✅ Code-server started on port:', startData.port);
+          console.log('[global-code-server] ✅ Code-server started on port:', startData.port);
           setCodeServerPort(startData.port);
           setCodeServerRunning(true);
         } else {
           throw new Error(startData.error || 'Failed to start code-server');
         }
       } catch (error) {
-        console.error('[code-server] Error starting code-server:', error);
+        console.error('[global-code-server] Error starting code-server:', error);
       } finally {
         setStartingCodeServer(false);
       }
     };
 
-    startCodeServerOnce();
+    ensureGlobalCodeServer();
 
-    // Cleanup: Stop code-server when leaving the project page
-    return () => {
-      console.log('[code-server] Unmounting project page, stopping code-server...');
-      fetch('/api/stop-code-server', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: project.project_path }),
-      }).catch(error => {
-        console.error('[code-server] Error stopping code-server on cleanup:', error);
-      });
-    };
+    // No cleanup - global code-server stays running across projects
   }, [project?.id]);
 
   // Initialize terminal once server is ready
@@ -1135,11 +1122,11 @@ export default function Project2Page() {
                     )}
 
                     {viewMode === 'code' && (
-                      // Show code-server iframe
-                      codeServerPort ? (
+                      // Show code-server iframe with ?folder= parameter
+                      codeServerPort && project ? (
                         <iframe
-                          key="code-server"
-                          src={`http://localhost:${codeServerPort}`}
+                          key={`code-server-${project.id}`}
+                          src={`http://localhost:${codeServerPort}/?folder=${encodeURIComponent(project.project_path)}`}
                           className="w-full h-full border-0"
                           title="Code Editor"
                         />
