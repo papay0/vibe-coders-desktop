@@ -5,8 +5,8 @@ import { useUser, useSession } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { createClerkSupabaseClient, Project } from '@/lib/supabase';
 import { SetBreadcrumbName } from '@/components/breadcrumb-context';
-import { GitCommitTest } from '@/components/git-commit-test';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, FolderOpen, Sparkles, Smartphone, Loader2, Trash2 } from 'lucide-react';
 
@@ -147,8 +147,26 @@ export default function ProjectsPage() {
 
       {/* Projects List */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2 flex-1">
+                    <Skeleton className="h-12 w-12 rounded-lg" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : projects.length === 0 ? (
         <Card className="border-dashed">
@@ -210,20 +228,6 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Divider */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Developer Tools
-          </span>
-        </div>
-      </div>
-
-      {/* Current Functionality */}
-      <GitCommitTest />
       </div>
     </>
   );

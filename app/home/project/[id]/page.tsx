@@ -78,6 +78,7 @@ export default function Project2Page() {
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const terminalInstanceRef = useRef<{ terminal: Terminal; ws: WebSocket; fitAddon: FitAddon } | null>(null);
   const isDarkRef = useRef<boolean>(false);
+  const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Determine the effective theme
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
@@ -221,12 +222,50 @@ export default function Project2Page() {
         console.log('🔍 [Frontend] Check response:', checkData);
 
         if (checkData.running && checkData.port) {
-          console.log('✅ [Frontend] Server ALREADY RUNNING on port:', checkData.port);
           setDevServerPort(checkData.port);
-          const url = `http://localhost:${checkData.port}`;
-          console.log('✅ [Frontend] Setting preview URL:', url);
-          setPreviewUrl(url);
           setServerRunning(true);
+
+          if (checkData.healthy) {
+            console.log('✅ [Frontend] Server HEALTHY on port:', checkData.port);
+            const url = `http://localhost:${checkData.port}`;
+            console.log('✅ [Frontend] Setting preview URL:', url);
+            setPreviewUrl(url);
+          } else {
+            console.log('⏳ [Frontend] Server STARTING on port:', checkData.port, '- waiting for health check...');
+            // Server is starting, poll until it's healthy
+            let attempts = 0;
+            const maxAttempts = 10; // 10 attempts * 2 seconds = 20 seconds max
+            healthCheckIntervalRef.current = setInterval(async () => {
+              attempts++;
+              console.log(`⏳ [Frontend] Health check attempt ${attempts}/${maxAttempts}...`);
+
+              const pollResponse = await fetch(
+                `/api/check-server-status?path=${encodeURIComponent(project.project_path)}`
+              );
+              const pollData = await pollResponse.json();
+
+              if (pollData.healthy) {
+                console.log('✅ [Frontend] Server now HEALTHY!');
+                const url = `http://localhost:${pollData.port}`;
+                setPreviewUrl(url);
+                if (healthCheckIntervalRef.current) {
+                  clearInterval(healthCheckIntervalRef.current);
+                  healthCheckIntervalRef.current = null;
+                }
+              } else if (attempts >= maxAttempts) {
+                console.log('❌ [Frontend] Health check timed out - server appears stuck, auto-restarting...');
+                if (healthCheckIntervalRef.current) {
+                  clearInterval(healthCheckIntervalRef.current);
+                  healthCheckIntervalRef.current = null;
+                }
+
+                // Automatically restart the stuck server
+                setCheckingServer(false);
+                setStartingServer(false);
+                handleRestartServer();
+              }
+            }, 2000);
+          }
         } else {
           // Server not running, start it
           console.log('❌ [Frontend] Server NOT running, starting now...');
@@ -263,6 +302,15 @@ export default function Project2Page() {
     };
 
     checkAndStartServer();
+
+    // Cleanup function to clear interval when component unmounts or dependencies change
+    return () => {
+      if (healthCheckIntervalRef.current) {
+        console.log('🧹 [Frontend] Cleaning up health check polling interval');
+        clearInterval(healthCheckIntervalRef.current);
+        healthCheckIntervalRef.current = null;
+      }
+    };
   }, [project?.id, project?.project_path]);
 
   // Update terminal theme when theme changes
@@ -1031,12 +1079,18 @@ export default function Project2Page() {
                               <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
                               <div className="space-y-2">
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                  {checkingServer ? 'Checking server...' : 'Starting server...'}
+                                  {checkingServer
+                                    ? 'Checking server...'
+                                    : serverRunning && !previewUrl
+                                      ? 'Compiling...'
+                                      : 'Starting server...'}
                                 </h3>
                                 <p className="text-sm text-muted-foreground max-w-md">
                                   {checkingServer
                                     ? 'Looking for running development server...'
-                                    : 'Starting your development server. This may take a moment...'}
+                                    : serverRunning && !previewUrl
+                                      ? 'Server is running but still compiling. This may take a moment...'
+                                      : 'Starting your development server. This may take a moment...'}
                                 </p>
                               </div>
                             </>
