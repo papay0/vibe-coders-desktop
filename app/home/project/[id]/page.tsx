@@ -62,12 +62,17 @@ export default function Project2Page() {
   const [devServerPort, setDevServerPort] = useState<number | null>(null);
 
   // Diff view state
-  const [viewMode, setViewMode] = useState<'preview' | 'changes'>('preview');
+  const [viewMode, setViewMode] = useState<'preview' | 'changes' | 'code'>('preview');
   const [gitStatus, setGitStatus] = useState<GitDiffResponse | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState<GitFileDiffResponse | null>(null);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [loadingGitStatus, setLoadingGitStatus] = useState(false);
+
+  // Code-server state
+  const [codeServerPort, setCodeServerPort] = useState<number | null>(null);
+  const [codeServerRunning, setCodeServerRunning] = useState(false);
+  const [startingCodeServer, setStartingCodeServer] = useState(false);
 
   // Debug: Log preview URL changes
   useEffect(() => {
@@ -330,6 +335,73 @@ export default function Project2Page() {
       }
     }
   }, [isDark]);
+
+  // Start code-server once when project loads, stop when leaving page
+  useEffect(() => {
+    if (!project) return;
+
+    const startCodeServerOnce = async () => {
+      console.log('[code-server] Project loaded, checking if code-server is running...');
+
+      // Check if code-server is already running
+      try {
+        const checkResponse = await fetch(
+          `/api/check-code-server-status?path=${encodeURIComponent(project.project_path)}`
+        );
+        const checkData = await checkResponse.json();
+
+        if (checkData.running && checkData.port) {
+          console.log('[code-server] ✅ Code-server already running on port:', checkData.port);
+          setCodeServerPort(checkData.port);
+          setCodeServerRunning(true);
+          return;
+        }
+      } catch (error) {
+        console.error('[code-server] Error checking status:', error);
+      }
+
+      // Code-server not running, start it
+      console.log('[code-server] Starting code-server...');
+      setStartingCodeServer(true);
+
+      try {
+        const startResponse = await fetch('/api/start-code-server', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath: project.project_path }),
+        });
+
+        const startData = await startResponse.json();
+        console.log('[code-server] Start response:', startData);
+
+        if (startData.success && startData.port) {
+          console.log('[code-server] ✅ Code-server started on port:', startData.port);
+          setCodeServerPort(startData.port);
+          setCodeServerRunning(true);
+        } else {
+          throw new Error(startData.error || 'Failed to start code-server');
+        }
+      } catch (error) {
+        console.error('[code-server] Error starting code-server:', error);
+      } finally {
+        setStartingCodeServer(false);
+      }
+    };
+
+    startCodeServerOnce();
+
+    // Cleanup: Stop code-server when leaving the project page
+    return () => {
+      console.log('[code-server] Unmounting project page, stopping code-server...');
+      fetch('/api/stop-code-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectPath: project.project_path }),
+      }).catch(error => {
+        console.error('[code-server] Error stopping code-server on cleanup:', error);
+      });
+    };
+  }, [project?.id]);
 
   // Initialize terminal once server is ready
   useEffect(() => {
@@ -736,14 +808,9 @@ export default function Project2Page() {
   const handleViewChanges = async () => {
     if (!project) return;
 
-    if (viewMode === 'preview') {
-      // Switch to changes view and load git status
-      setViewMode('changes');
-      await loadGitStatus();
-    } else {
-      // Switch back to preview
-      setViewMode('preview');
-    }
+    // Always switch to changes view and load git status
+    setViewMode('changes');
+    await loadGitStatus();
   };
 
   const handleFileSelect = (filePath: string) => {
@@ -769,7 +836,6 @@ export default function Project2Page() {
     }
 
     console.log('🔄 [Frontend] ========== RESTARTING SERVER ==========');
-    console.log('🔄 [Frontend] Current port:', devServerPort || 'unknown');
     console.log('🔄 [Frontend] Project path:', project.project_path);
 
     setRestartingServer(true);
@@ -779,7 +845,6 @@ export default function Project2Page() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          port: devServerPort || null,
           projectPath: project.project_path,
         }),
       });
@@ -978,6 +1043,19 @@ export default function Project2Page() {
                           <Code2 className="h-3 w-3" />
                           Changes
                         </Button>
+                        <Button
+                          onClick={() => setViewMode('code')}
+                          size="sm"
+                          variant={viewMode === 'code' ? 'default' : 'ghost'}
+                          className={`h-7 gap-1.5 rounded-lg text-xs ${
+                            viewMode === 'code'
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <Code2 className="h-3 w-3" />
+                          Code
+                        </Button>
                       </div>
                       {viewMode === 'preview' && previewUrl && (
                         <span className="text-xs font-mono text-gray-500 dark:text-gray-500 truncate max-w-xs">
@@ -1037,9 +1115,9 @@ export default function Project2Page() {
                     </div>
                   </div>
 
-                  {/* Preview/Changes Body */}
+                  {/* Preview/Changes/Code Body */}
                   <div className="flex-1 relative overflow-hidden bg-white dark:bg-gray-950">
-                    {viewMode === 'changes' ? (
+                    {viewMode === 'changes' && (
                       // Show diff viewer
                       loadingGitStatus ? (
                         <div className="flex h-full items-center justify-center">
@@ -1054,11 +1132,56 @@ export default function Project2Page() {
                           onFileSelect={handleFileSelect}
                         />
                       )
-                    ) : (
+                    )}
+
+                    {viewMode === 'code' && (
+                      // Show code-server iframe
+                      codeServerPort ? (
+                        <iframe
+                          key="code-server"
+                          src={`http://localhost:${codeServerPort}`}
+                          className="w-full h-full border-0"
+                          title="Code Editor"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+                          {startingCodeServer ? (
+                            <>
+                              <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                  Starting Code Editor...
+                                </h3>
+                                <p className="text-sm text-muted-foreground max-w-md">
+                                  Launching VSCode in your browser. This may take a moment...
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center">
+                                <Code2 className="h-8 w-8 text-blue-600" />
+                              </div>
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                  Code Editor Not Running
+                                </h3>
+                                <p className="text-sm text-muted-foreground max-w-md">
+                                  The code editor failed to start. Please try switching to another tab and back.
+                                </p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )
+                    )}
+
+                    {viewMode === 'preview' && (
                       // Show preview iframe
                       previewUrl ? (
                         <>
                           <iframe
+                            key="preview"
                             src={previewUrl}
                             className="w-full h-full border-0"
                             title="Preview"

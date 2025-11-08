@@ -27,7 +27,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { port, projectPath } = body;
+    const { projectPath } = body;
 
     if (!projectPath) {
       return NextResponse.json(
@@ -38,78 +38,67 @@ export async function POST(request: NextRequest) {
 
     console.log('[restart-server] ========== RESTART REQUEST ==========');
     console.log('[restart-server] Project path:', projectPath);
-    console.log('[restart-server] Port from frontend:', port);
 
-    // Step 1: Find and kill any running dev server for this project
-    // Don't trust the port from frontend - find the actual server
+    let oldPort: number | null = null;
+
+    // Step 1: Check if there's an existing server running
     try {
-      const lockFilePath = path.join(projectPath, '.next', 'dev', 'lock');
-      console.log('[restart-server] Looking for lock file:', lockFilePath);
+      const serverInfoPath = await getServerInfoPath(projectPath);
+      const { readFile } = await import('fs/promises');
+      const fileContent = await readFile(serverInfoPath, 'utf-8');
+      const serverInfo = JSON.parse(fileContent);
+      oldPort = serverInfo.port;
+      console.log('[restart-server] Found existing server on port:', oldPort);
 
-      const { stdout: lsofOutput } = await execAsync(
-        `lsof "${lockFilePath}" 2>/dev/null | grep -v COMMAND || echo ""`
-      );
+      // Kill the old process
+      try {
+        await execAsync(`kill ${serverInfo.pid}`);
+        console.log('[restart-server] Killed old process:', serverInfo.pid);
 
-      if (lsofOutput.trim()) {
-        console.log('[restart-server] Found process with lock file');
-        const lines = lsofOutput.trim().split('\n');
-
-        for (const line of lines) {
-          const parts = line.trim().split(/\s+/);
-          const command = parts[0];
-          const pid = parts[1];
-
-          if (command.toLowerCase().includes('node')) {
-            console.log('[restart-server] Killing node process:', pid);
-            try {
-              await execAsync(`kill ${pid}`);
-              console.log('[restart-server] Sent kill signal to:', pid);
-
-              // Wait for the process to actually die (up to 5 seconds)
-              let retries = 10;
-              while (retries > 0) {
-                try {
-                  await execAsync(`ps -p ${pid}`);
-                  // Process still running, wait
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                  retries--;
-                } catch (error) {
-                  // Process is dead
-                  console.log('[restart-server] ✓ Process is dead:', pid);
-                  break;
-                }
-              }
-
-              if (retries === 0) {
-                console.log('[restart-server] Warning: Process may still be running:', pid);
-              }
-            } catch (error) {
-              console.log('[restart-server] Failed to kill process:', pid);
-            }
+        // Wait for the port to be freed
+        let retries = 20;
+        while (retries > 0) {
+          try {
+            await execAsync(`lsof -iTCP:${oldPort} -sTCP:LISTEN -t`);
+            // Port still in use, wait
+            await new Promise(resolve => setTimeout(resolve, 500));
+            retries--;
+          } catch (error) {
+            // Port is free
+            console.log('[restart-server] ✓ Port', oldPort, 'is now free');
+            break;
           }
         }
-      } else {
-        console.log('[restart-server] No running server found to kill');
+      } catch (error) {
+        console.log('[restart-server] Process already dead or error killing:', error);
       }
     } catch (error) {
-      console.log('[restart-server] Error finding/killing server:', error);
+      console.log('[restart-server] No existing server info found');
     }
 
-    // Step 1.5: Clean up the lock file to be sure
+    // Step 2: Clean up lock file
     try {
       const lockFilePath = path.join(projectPath, '.next', 'dev', 'lock');
       await unlink(lockFilePath);
       console.log('[restart-server] ✓ Removed lock file');
     } catch (error) {
-      console.log('[restart-server] No lock file to remove (or already gone)');
+      // Ignore - file might not exist
     }
 
-    // Step 2: Find an available port (don't assume any port is ours!)
-    console.log('[restart-server] Finding available port...');
-    const availablePort = await findAvailablePort();
+    // Step 3: Determine which port to use
+    let portToUse: number;
+    if (oldPort !== null) {
+      // Reuse the same port
+      console.log('[restart-server] Reusing old port:', oldPort);
+      portToUse = oldPort;
+    } else {
+      // Find a new available port
+      console.log('[restart-server] Finding new available port...');
+      portToUse = await findAvailablePort();
+    }
 
-    console.log('[restart-server] Starting server on port:', availablePort);
-    const { port: newPort, pid: newPid } = await startDevServer(projectPath, availablePort);
+    console.log('[restart-server] Starting server on port:', portToUse);
+    const { port: newPort, pid: newPid } = await startDevServer(projectPath, portToUse);
 
     // Save the server info
     const serverInfoPath = await getServerInfoPath(projectPath);
