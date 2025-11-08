@@ -1122,11 +1122,11 @@ export default function Project2Page() {
                     )}
 
                     {viewMode === 'code' && (
-                      // Show code-server iframe with ?folder= parameter
+                      // Show code-server iframe with ?folder= parameter and open README.md by default
                       codeServerPort && project ? (
                         <iframe
                           key={`code-server-${project.id}`}
-                          src={`http://localhost:${codeServerPort}/?folder=${encodeURIComponent(project.project_path)}`}
+                          src={`http://localhost:${codeServerPort}/?folder=${encodeURIComponent(project.project_path)}&openFile=${encodeURIComponent(project.project_path + '/README.md')}`}
                           className="w-full h-full border-0"
                           title="Code Editor"
                         />
