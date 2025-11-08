@@ -50,7 +50,7 @@ export function AppSidebar() {
   const { signOut } = useClerk();
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

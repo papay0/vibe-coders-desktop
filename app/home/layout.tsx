@@ -38,7 +38,7 @@ export default function HomeLayout({
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={true}>
       <AppSidebar />
       <SidebarInset className="flex flex-col h-screen overflow-hidden">
         <BreadcrumbProvider>
