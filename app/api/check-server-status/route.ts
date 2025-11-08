@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { getServerInfoPath } from '@/lib/server-info';
 
 const execAsync = promisify(exec);
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 1: Check for saved server info file
-    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
+    const serverInfoPath = await getServerInfoPath(projectPath);
     console.log('[check-server-status] Looking for server info file:', serverInfoPath);
 
     try {

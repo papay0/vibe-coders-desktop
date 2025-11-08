@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn, exec } from 'child_process';
 import { writeFile } from 'fs/promises';
 import { promisify } from 'util';
-import path from 'path';
+import { getServerInfoPath } from '@/lib/server-info';
 
 const execAsync = promisify(exec);
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Try to reuse the previous port or default to 3000
     let targetPort = 3000;
-    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
+    const serverInfoPath = await getServerInfoPath(projectPath);
 
     try {
       const { readFile: readFileAsync } = require('fs/promises');

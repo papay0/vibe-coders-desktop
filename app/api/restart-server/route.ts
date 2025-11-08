@@ -3,6 +3,7 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, unlink } from 'fs/promises';
 import path from 'path';
+import { getServerInfoPath } from '@/lib/server-info';
 
 const execAsync = promisify(exec);
 
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
     let targetPort = 3000; // Default port
 
     // Check if we have a saved port preference
-    const serverInfoPath = path.join(projectPath, '.vibe-coders-server.json');
+    const serverInfoPath = await getServerInfoPath(projectPath);
     try {
       const { readFile: readFileAsync } = require('fs/promises');
       const savedInfo = JSON.parse(await readFileAsync(serverInfoPath, 'utf-8'));

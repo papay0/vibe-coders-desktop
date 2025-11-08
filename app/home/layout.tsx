@@ -52,7 +52,7 @@ export default function HomeLayout({
               <ThemeSwitcher />
             </div>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-hidden">
+          <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-y-auto">
             {children}
           </div>
         </BreadcrumbProvider>
