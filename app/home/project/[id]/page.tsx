@@ -45,10 +45,16 @@ export default function Project2Page() {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const terminalInstanceRef = useRef<{ terminal: Terminal; ws: WebSocket; fitAddon: FitAddon } | null>(null);
+  const isDarkRef = useRef<boolean>(false);
 
   // Determine the effective theme
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
   const isDark = effectiveTheme === 'dark';
+
+  // Keep ref in sync with current theme
+  useEffect(() => {
+    isDarkRef.current = isDark;
+  }, [isDark]);
 
   // Terminal themes
   const darkTheme = {
@@ -78,23 +84,25 @@ export default function Project2Page() {
     background: '#ffffff',
     foreground: '#1e1e1e',
     cursor: '#1e1e1e',
+    cursorAccent: '#ffffff',
     selectionBackground: '#add6ff',
-    black: '#1e1e1e',
+    selectionForeground: '#1e1e1e',
+    black: '#000000',
     red: '#cd3131',
     green: '#008000',
-    yellow: '#795e26',
+    yellow: '#6d5c00',
     blue: '#0451a5',
     magenta: '#a31515',
     cyan: '#098658',
-    white: '#1e1e1e',
-    brightBlack: '#3c3c3c',
+    white: '#383838',
+    brightBlack: '#555555',
     brightRed: '#cd3131',
-    brightGreen: '#00bc00',
-    brightYellow: '#b5ba00',
+    brightGreen: '#007700',
+    brightYellow: '#5c4d00',
     brightBlue: '#0451a5',
-    brightMagenta: '#bc05bc',
-    brightCyan: '#0598bc',
-    brightWhite: '#1e1e1e',
+    brightMagenta: '#a31515',
+    brightCyan: '#098658',
+    brightWhite: '#2d2d2d',
   };
 
   // Load project
@@ -228,8 +236,18 @@ export default function Project2Page() {
   // Update terminal theme when theme changes
   useEffect(() => {
     if (terminalInstanceRef.current) {
-      const { terminal } = terminalInstanceRef.current;
-      terminal.options.theme = isDark ? darkTheme : lightTheme;
+      const { terminal, ws } = terminalInstanceRef.current;
+      const newTheme = isDark ? darkTheme : lightTheme;
+      console.log('[Terminal Theme] Switching to:', isDark ? 'dark' : 'light');
+      console.log('[Terminal Theme] Theme colors:', newTheme);
+      terminal.options.theme = newTheme;
+
+      // Clear and refresh the terminal to apply theme to existing content
+      terminal.clear();
+      if (ws.readyState === WebSocket.OPEN) {
+        // Send Ctrl+L to refresh the terminal display
+        ws.send('\x0c');
+      }
     }
   }, [isDark]);
 
@@ -241,6 +259,10 @@ export default function Project2Page() {
     setError(null);
     setConnecting(true);
 
+    const initialTheme = isDark ? darkTheme : lightTheme;
+    console.log('[Terminal Init] Initial theme:', isDark ? 'dark' : 'light');
+    console.log('[Terminal Init] Theme colors:', initialTheme);
+
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 14,
@@ -249,7 +271,7 @@ export default function Project2Page() {
       scrollOnUserInput: false,
       fastScrollModifier: 'shift',
       allowTransparency: false,
-      theme: isDark ? darkTheme : lightTheme,
+      theme: initialTheme,
     });
 
     const fitAddon = new FitAddon();
@@ -275,7 +297,20 @@ export default function Project2Page() {
     };
 
     ws.onmessage = (event) => {
-      terminal.write(event.data);
+      let data = event.data;
+
+      // Filter ANSI codes for light mode: convert white/bright-white to dark colors
+      if (!isDarkRef.current) {
+        // Replace bright white (ESC[97m or ESC[1;37m) with dark gray
+        data = data.replace(/\x1b\[97m/g, '\x1b[90m'); // bright white -> bright black
+        data = data.replace(/\x1b\[1;37m/g, '\x1b[90m'); // bold white -> bright black
+        // Replace white (ESC[37m) with dark gray
+        data = data.replace(/\x1b\[37m/g, '\x1b[30m'); // white -> black
+        // Replace default/reset to use our foreground color
+        data = data.replace(/\x1b\[0m/g, '\x1b[0;38;5;235m'); // reset with dark color
+      }
+
+      terminal.write(data);
 
       // Listen for localhost URLs in terminal output to auto-update preview
       const urlMatch = event.data.match(/https?:\/\/localhost:\d+/);
@@ -309,6 +344,14 @@ export default function Project2Page() {
 
     const handleWheel = (e: WheelEvent) => {
       if (ws.readyState !== WebSocket.OPEN) return;
+
+      // Don't interfere if user is selecting text
+      const selection = terminal.getSelection();
+      if (selection && selection.length > 0) {
+        return;
+      }
+
+      // Only prevent default for actual scrolling
       e.preventDefault();
       e.stopPropagation();
 
@@ -391,18 +434,29 @@ export default function Project2Page() {
     window.addEventListener('resize', handleResize);
 
     let resizeTimeout: NodeJS.Timeout;
-    const resizeObserver = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      console.log('🔄 [RESIZE OBSERVER] Container size changed!', entries[0].contentRect);
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
+        console.log('🔄 [RESIZE] Fitting terminal to container...');
+        const oldCols = terminal.cols;
+        const oldRows = terminal.rows;
         fitAddon.fit();
+        const newCols = terminal.cols;
+        const newRows = terminal.rows;
+        console.log(`🔄 [RESIZE] Terminal dimensions: ${oldCols}x${oldRows} → ${newCols}x${newRows}`);
+
         if (ws.readyState === WebSocket.OPEN) {
+          console.log('🔄 [RESIZE] Sending resize message to backend...');
           ws.send(JSON.stringify({
             type: 'resize',
-            cols: terminal.cols,
-            rows: terminal.rows,
+            cols: newCols,
+            rows: newRows,
           }));
+        } else {
+          console.log('⚠️ [RESIZE] WebSocket not open, cannot send resize');
         }
-      }, 100);
+      }, 50);
     });
 
     // Observe the container, not the terminal element itself
@@ -632,7 +686,36 @@ export default function Project2Page() {
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal" className="h-full">
             {/* Left Panel - Terminal */}
-            <ResizablePanel defaultSize={33} minSize={20} maxSize={50}>
+            <ResizablePanel
+              defaultSize={33}
+              minSize={20}
+              maxSize={50}
+              onResize={(size) => {
+                console.log('🔄 [PANEL RESIZE] Terminal panel resized to:', size);
+                // Trigger terminal resize when panel size changes
+                if (terminalInstanceRef.current) {
+                  setTimeout(() => {
+                    const { terminal, ws, fitAddon } = terminalInstanceRef.current!;
+                    console.log('🔄 [PANEL RESIZE] Fitting terminal...');
+                    const oldCols = terminal.cols;
+                    const oldRows = terminal.rows;
+                    fitAddon.fit();
+                    const newCols = terminal.cols;
+                    const newRows = terminal.rows;
+                    console.log(`🔄 [PANEL RESIZE] Dimensions: ${oldCols}x${oldRows} → ${newCols}x${newRows}`);
+
+                    if (ws.readyState === WebSocket.OPEN && (oldCols !== newCols || oldRows !== newRows)) {
+                      console.log('🔄 [PANEL RESIZE] Sending resize to backend...');
+                      ws.send(JSON.stringify({
+                        type: 'resize',
+                        cols: newCols,
+                        rows: newRows,
+                      }));
+                    }
+                  }, 50);
+                }
+              }}
+            >
               <div className="h-full flex flex-col p-2 pr-1">
                 <div className="flex-1 flex flex-col rounded-2xl overflow-hidden shadow-xl border-2 border-gray-200 dark:border-gray-700">
                   {/* Terminal Header */}
