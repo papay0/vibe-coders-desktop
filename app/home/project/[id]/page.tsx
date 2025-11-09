@@ -288,10 +288,12 @@ export default function Project2Page() {
           if (startData.success && startData.port) {
             console.log('✅ [Frontend] Server STARTED on port:', startData.port);
             setDevServerPort(startData.port);
+            setServerRunning(true);
+
+            // Set preview URL immediately - iframe will handle loading
             const url = `http://localhost:${startData.port}`;
             console.log('✅ [Frontend] Setting preview URL:', url);
             setPreviewUrl(url);
-            setServerRunning(true);
           } else {
             throw new Error(startData.error || 'Failed to start server');
           }
@@ -846,10 +848,12 @@ export default function Project2Page() {
       if (data.success && data.port) {
         console.log('✅ [Frontend] Server restarted on port:', data.port);
         setDevServerPort(data.port);
-        const url = `http://localhost:${data.port}`;
-        console.log('✅ [Frontend] Setting new preview URL:', url);
-        setPreviewUrl(url);
         setServerRunning(true);
+
+        // Set preview URL immediately - iframe will handle loading
+        const url = `http://localhost:${data.port}`;
+        console.log('✅ [Frontend] Setting preview URL:', url);
+        setPreviewUrl(url);
       } else {
         throw new Error('Server restart returned invalid response');
       }
@@ -1104,9 +1108,9 @@ export default function Project2Page() {
 
                   {/* Preview/Changes/Code Body */}
                   <div className="flex-1 relative overflow-hidden bg-white dark:bg-gray-950">
-                    {viewMode === 'changes' && (
-                      // Show diff viewer
-                      loadingGitStatus ? (
+                    {/* Changes Tab - always rendered, just hidden */}
+                    <div className={`absolute inset-0 ${viewMode === 'changes' ? 'block' : 'hidden'}`}>
+                      {loadingGitStatus ? (
                         <div className="flex h-full items-center justify-center">
                           <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
                         </div>
@@ -1118,15 +1122,15 @@ export default function Project2Page() {
                           loadingDiff={loadingDiff}
                           onFileSelect={handleFileSelect}
                         />
-                      )
-                    )}
+                      )}
+                    </div>
 
-                    {viewMode === 'code' && (
-                      // Show code-server iframe with ?folder= parameter and open README.md by default
-                      codeServerPort && project ? (
+                    {/* Code Tab - always rendered, just hidden */}
+                    <div className={`absolute inset-0 ${viewMode === 'code' ? 'block' : 'hidden'}`}>
+                      {codeServerPort && project ? (
                         <iframe
                           key={`code-server-${project.id}`}
-                          src={`http://localhost:${codeServerPort}/?folder=${encodeURIComponent(project.project_path)}&openFile=${encodeURIComponent(project.project_path + '/README.md')}`}
+                          src={`http://localhost:${codeServerPort}/?folder=${encodeURIComponent(project.project_path)}`}
                           className="w-full h-full border-0"
                           title="Code Editor"
                         />
@@ -1160,12 +1164,12 @@ export default function Project2Page() {
                             </>
                           )}
                         </div>
-                      )
-                    )}
+                      )}
+                    </div>
 
-                    {viewMode === 'preview' && (
-                      // Show preview iframe
-                      previewUrl ? (
+                    {/* Preview Tab - always rendered, just hidden */}
+                    <div className={`absolute inset-0 ${viewMode === 'preview' ? 'block' : 'hidden'}`}>
+                      {previewUrl ? (
                         <>
                           <iframe
                             key="preview"
@@ -1228,8 +1232,8 @@ export default function Project2Page() {
                             </>
                           )}
                         </div>
-                      )
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

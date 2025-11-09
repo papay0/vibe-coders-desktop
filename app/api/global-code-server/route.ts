@@ -45,6 +45,7 @@ function startCodeServer(port: number): Promise<{ port: number; pid: number }> {
       '--disable-telemetry',
       '--bind-addr', `127.0.0.1:${port}`,
       '--disable-workspace-trust',
+      '--ignore-last-opened',
     ], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
